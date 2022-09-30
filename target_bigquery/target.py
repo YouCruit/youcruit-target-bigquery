@@ -1,6 +1,8 @@
 """BigQuery target class."""
 
 from __future__ import annotations
+from pathlib import PurePath
+from typing import List, Optional, Union
 
 from singer_sdk.target_base import Target
 from singer_sdk import typing as th
@@ -15,16 +17,16 @@ class TargetBigQuery(Target):
 
     name = "target-bigquery"
     config_jsonschema = th.PropertiesList(
-        th.Property(
-            "filepath",
-            th.StringType,
-            description="The path to the target output file"
-        ),
-        th.Property(
-            "file_naming_scheme",
-            th.StringType,
-            description="The scheme with which output files will be named"
-        ),
+        # th.Property(
+        #     "stream_maps",
+        #     th.ObjectType,
+        #     description="Define an optional transform of the incoming data",
+        # ),
+        # th.Property(
+        #     "stream_map_config",
+        #     th.ObjectType,
+        #     description="Optional config options be used inside the stream map",
+        # ),
     ).to_dict()
 
     default_sink_class = BigQuerySink
