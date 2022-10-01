@@ -3,7 +3,7 @@ from typing import Iterable
 from google.cloud.bigquery import SchemaField
 
 
-def column_type(name: str, schema_property: dict):
+def column_type(name: str, schema_property: dict, nullable: bool) -> SchemaField:
     """Converts to big query type"""
     property_type = schema_property['type']
     property_format = schema_property.get('format', None)
@@ -15,18 +15,18 @@ def column_type(name: str, schema_property: dict):
                              items_schema['type'],
                              items_schema.get('format', None))
         except KeyError:
-            return SchemaField(name, 'string', 'NULLABLE')
+            return SchemaField(name, 'string', 'NULLABLE' if nullable else 'REQUIRED')
         else:
             if items_type == "record":
                 return handle_record_type(name, items_schema, "REPEATED")
             return SchemaField(name, items_type, 'REPEATED')
 
     elif 'object' in property_type:
-        return handle_record_type(name, schema_property)
+        return handle_record_type(name, schema_property, mode='NULLABLE' if nullable else 'REQUIRED')
 
     else:
         result_type = bigquery_type(property_type, property_format)
-        return SchemaField(name, result_type, 'NULLABLE')
+        return SchemaField(name, result_type, 'NULLABLE' if nullable else 'REQUIRED')
 
 
 def handle_record_type(name, schema_property, mode="NULLABLE"):

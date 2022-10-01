@@ -5,6 +5,7 @@ from datetime import date, datetime
 from decimal import Decimal, getcontext
 import json
 import re
+from typing import List
 
 
 PRECISION = 38
@@ -90,7 +91,7 @@ def parse_datetime(dt):
         return None
 
 
-def column_type_avro(name, schema_property):
+def column_type_avro(name: str, schema_property: dict, nullable: bool) -> dict:
     global schema_collision_counter
     property_type = schema_property['type']
     property_format = schema_property.get('format', None)
@@ -145,17 +146,17 @@ def column_type_avro(name, schema_property):
     else:
         result_type = 'string'
 
-    result['type'] = ['null', result_type]
+    result['type'] = ['null', result_type] if nullable else [result_type]
     return result
 
 
-def avro_schema(stream_name: str, schema: dict):
+def avro_schema(stream_name: str, schema: dict, primary_keys: List[str]) -> dict:
     schema = {
         "type": "record",
         "namespace": "youcruit.avro",
         "name": stream_name,
         "fields": [
-            column_type_avro(name, json_type)
+            column_type_avro(name, json_type, nullable = name not in primary_keys)
             for name, json_type in schema["properties"].items()
         ]
     }

@@ -35,7 +35,7 @@ class BigQuerySink(BatchSink):
         self.dataset_id = target.config['dataset']
         self.table_prefix = target.config.get('table_prefix', None)
 
-        self.parsed_schema = parse_schema(avro_schema(self.stream_name, self.schema))
+        self.parsed_schema = parse_schema(avro_schema(self.stream_name, self.schema, self.key_properties))
 
         self.client: bigquery.Client = target.get_client(self.project_id, self.location)
 
@@ -62,7 +62,7 @@ class BigQuerySink(BatchSink):
         self.logger.info(f"{self.schema}")
 
         schema = [
-            column_type(name, schema)
+            column_type(name, schema, nullable=name not in self.key_properties)
             for (name, schema) in self.schema['properties'].items()
         ]
 
