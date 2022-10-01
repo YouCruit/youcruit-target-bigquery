@@ -1,0 +1,60 @@
+"""Some BigQuery utils"""
+from typing import Iterable
+from google.cloud.bigquery import SchemaField
+
+
+def column_type(name: str, schema_property: dict):
+    """Converts to big query type"""
+    property_type = schema_property['type']
+    property_format = schema_property.get('format', None)
+
+    if 'array' in property_type:
+        try:
+            items_schema = schema_property['items']
+            items_type = bigquery_type(
+                             items_schema['type'],
+                             items_schema.get('format', None))
+        except KeyError:
+            return SchemaField(name, 'string', 'NULLABLE')
+        else:
+            if items_type == "record":
+                return handle_record_type(name, items_schema, "REPEATED")
+            return SchemaField(name, items_type, 'REPEATED')
+
+    elif 'object' in property_type:
+        return handle_record_type(name, schema_property)
+
+    else:
+        result_type = bigquery_type(property_type, property_format)
+        return SchemaField(name, result_type, 'NULLABLE')
+
+
+def handle_record_type(name, schema_property, mode="NULLABLE"):
+    fields = [column_type(col, t) for col, t in schema_property.get('properties', {}).items()]
+    if fields:
+        return SchemaField(name, 'RECORD', mode, fields=fields)
+    else:
+        return SchemaField(name, 'string', mode)
+
+
+def bigquery_type(property_type: Iterable, property_format: str):
+    # Every date-time JSON value is currently mapped to TIMESTAMP WITHOUT TIME ZONE
+    #
+    # TODO: Detect if timezone postfix exists in the JSON and find if DATETIME or
+    # TIMESTAMP which includes time zone is the better column type
+    if property_format == 'date-time':
+        return 'timestamp'
+    elif property_format == 'time':
+        return 'time'
+    elif 'number' in property_type:
+        return 'numeric'
+    elif 'integer' in property_type and 'string' in property_type:
+        return 'string'
+    elif 'integer' in property_type:
+        return 'integer'
+    elif 'boolean' in property_type:
+        return 'boolean'
+    elif 'object' in property_type:
+        return 'record'
+    else:
+        return 'string'

@@ -6,7 +6,7 @@ from typing import Dict, Any
 
 from singer_sdk.testing import get_standard_target_tests
 
-from target_bigquery.target import TargetBigQuery
+from ..target import TargetBigQuery
 
 SAMPLE_CONFIG: Dict[str, Any] = {
     # TODO: Initialize minimal target config

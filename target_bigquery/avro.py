@@ -149,11 +149,11 @@ def column_type_avro(name, schema_property):
     return result
 
 
-def avro_schema(project_id: str, dataset: str, schema: dict):
+def avro_schema(stream_name: str, schema: dict):
     schema = {
         "type": "record",
-        "namespace": f"{project_id}.{dataset}.youcruit.avro",
-        "name": schema["stream"],
+        "namespace": "youcruit.avro",
+        "name": stream_name,
         "fields": [
             column_type_avro(name, json_type)
             for name, json_type in schema["properties"].items()
