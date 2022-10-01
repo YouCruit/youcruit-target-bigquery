@@ -58,9 +58,6 @@ class BigQuerySink(BatchSink):
 
     def create_table(self, table_name: str, expires: bool) -> str:
         """Creates the table in bigquery"""
-
-        self.logger.info(f"{self.schema}")
-
         schema = [
             column_type(name, schema, nullable=name not in self.key_properties)
             for (name, schema) in self.schema['properties'].items()
@@ -111,8 +108,6 @@ class BigQuerySink(BatchSink):
         tables = self.query([f"SELECT table_name FROM {self.dataset_id}.INFORMATION_SCHEMA.TABLES"])
         for table in tables:
             table_name = table['table_name']
-            self.logger.info(f"FOund table: {table_name}")
-
             if table_name == self.table_name:
                 return True
         return False
@@ -123,8 +118,6 @@ class BigQuerySink(BatchSink):
         job_config.query_parameters = []
 
         joined_queries = ';\n'.join(queries)
-
-        self.logger.info(joined_queries)
 
         query_job = self.client.query(joined_queries, job_config=job_config)
 
@@ -147,7 +140,6 @@ class BigQuerySink(BatchSink):
 
         # Starts job and waits for result
         job.result()
-        self.logger.info("Load complete")
 
 
     def start_batch(self, context: dict) -> None:
@@ -156,11 +148,6 @@ class BigQuerySink(BatchSink):
         Developers may optionally add additional markers to the `context` dict,
         which is unique to this batch.
         """
-        # Sample:
-        # ------
-        # batch_key = context["batch_id"]
-        # context["file_path"] = f"{batch_key}.csv"
-
         if not self.key_properties:
             raise Exception("Missing key_properties (e.g. primary key(s)) in schema!")
 
@@ -173,33 +160,15 @@ class BigQuerySink(BatchSink):
         Developers may optionally read or write additional markers within the
         passed `context` dict from the current batch.
         """
-        # Sample:
-        # ------
-        # with open(context["file_path"], "a") as csvfile:
-        #     csvfile.write(record)
-        # TODO make debug
-        self.logger.info(f"Processing record in batch {context['batch_id']}")
-
         avro_record = fix_recursive_types_in_dict(record, self.schema['properties'])
-
-        self.logger.info(f"Avro record: {avro_record}")
 
         if "records" not in context:
             context["records"] = []
 
         context["records"].append(avro_record)
 
-        # Appending doesn't write schema
-        #with open(context["temp_file"], "a+b") as tempfile:
-        #    writer(tempfile, self.parsed_schema, [avro_record])
-
     def process_batch(self, context: dict) -> None:
         """Write out any prepped records and return once fully written."""
-        # Sample:
-        # ------
-        # client.upload(context["file_path"])  # Upload file
-        # Path(context["file_path"]).unlink()  # Delete local copy
-        self.logger.info(f"Processing batch {context['batch_id']}")
 
         with open(context["temp_file"], "wb") as tempfile:
             writer(tempfile, self.parsed_schema, context["records"])
@@ -207,16 +176,8 @@ class BigQuerySink(BatchSink):
         with open(context["temp_file"], "r+b") as tempfile:
             self.load_table_from_file(tempfile, context["batch_id"])
 
-        # TODO Delete temp file once we are done with it
-        self.logger.info(f"WOuld have deleted: {context['temp_file']}")
-        with open(context["temp_file"], "r+b") as tempfile:
-            for n in reader(tempfile):
-                self.logger.info(f"Avro: {n}")
-        #Path(context["temp_file"]).unlink()
-
-        # Finally merge data and delete temp table
-        if not self.table_exists():
-            self.logger.info(f"{self.table_name} does not exist. Creating")
+        # Delete temp file once we are done with it
+        Path(context["temp_file"]).unlink()
 
         self.create_table(self.table_name, expires=False)
 
