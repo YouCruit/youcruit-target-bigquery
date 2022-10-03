@@ -5,14 +5,14 @@ from datetime import datetime, timedelta
 from io import BufferedRandom
 from pathlib import Path
 from tempfile import mkstemp
-from typing import Dict, List, Optional, Union
+from typing import BinaryIO, Dict, List, Optional
 
 from singer_sdk.sinks import BatchSink
 from singer_sdk.plugin_base import PluginBase
-from fastavro import writer, parse_schema, reader
+from fastavro import writer, parse_schema
 from google.cloud import bigquery
 
-from .bq import column_type
+from .bq import column_type, get_client
 from .avro import avro_schema, fix_recursive_types_in_dict
 
 class BigQuerySink(BatchSink):
@@ -37,7 +37,10 @@ class BigQuerySink(BatchSink):
 
         self.parsed_schema = parse_schema(avro_schema(self.stream_name, self.schema, self.key_properties))
 
-        self.client: bigquery.Client = target.get_client(self.project_id, self.location)
+        if not self.key_properties:
+            raise Exception("Missing key_properties (e.g. primary key(s)) in schema!")
+
+        self.client: bigquery.Client = get_client(self.project_id, self.location)
 
     @property
     def table_name(self) -> str:
@@ -56,7 +59,7 @@ class BigQuerySink(BatchSink):
         """
         return f"{self.table_name}_{batch_id}"
 
-    def create_table(self, table_name: str, expires: bool) -> str:
+    def create_table(self, table_name: str, expires: bool):
         """Creates the table in bigquery"""
         schema = [
             column_type(name, schema, nullable=name not in self.key_properties)
@@ -112,7 +115,7 @@ class BigQuerySink(BatchSink):
                 return True
         return False
 
-    def query(self, queries: List[str]) -> bigquery.RowIterator:
+    def query(self, queries: List[str]) -> bigquery.table.RowIterator:
         """Executes the queries and returns when they have completed"""
         job_config = bigquery.QueryJobConfig()
         job_config.query_parameters = []
@@ -124,7 +127,7 @@ class BigQuerySink(BatchSink):
         # Starts job and waits for result
         return query_job.result()
 
-    def load_table_from_file(self, filehandle: BufferedRandom, batch_id: str) -> None:
+    def load_table_from_file(self, filehandle: BinaryIO, batch_id: str) -> None:
         """Starts a load job for the given file. Returns once the job is completed"""
         self.create_table(self.temp_table_name(batch_id), expires=True)
 
@@ -141,49 +144,73 @@ class BigQuerySink(BatchSink):
         # Starts job and waits for result
         job.result()
 
-
     def start_batch(self, context: dict) -> None:
-        """Start a batch.
+        super().start_batch(context)
 
-        Developers may optionally add additional markers to the `context` dict,
-        which is unique to this batch.
-        """
-        if not self.key_properties:
-            raise Exception("Missing key_properties (e.g. primary key(s)) in schema!")
-
-        _, temp_file = mkstemp()
-        context["temp_file"] = temp_file
+        self.logger.info("Starting my batch")
 
     def process_record(self, record: dict, context: dict) -> None:
-        """Process the record.
+        super().process_record(record, context)
 
-        Developers may optionally read or write additional markers within the
-        passed `context` dict from the current batch.
-        """
-        avro_record = fix_recursive_types_in_dict(record, self.schema['properties'])
+        self.logger.info("Processing my record")
 
-        if "records" not in context:
-            context["records"] = []
 
-        context["records"].append(avro_record)
+    # def start_batch(self, context: dict) -> None:
+    #     """Start a batch.
+
+    #     Developers may optionally add additional markers to the `context` dict,
+    #     which is unique to this batch.
+    #     """
+    #     if not self.key_properties:
+    #         raise Exception("Missing key_properties (e.g. primary key(s)) in schema!")
+
+    #     _, temp_file = mkstemp()
+    #     context["temp_file"] = temp_file
+
+    # def process_record(self, record: dict, context: dict) -> None:
+    #     """Process the record.
+
+    #     Developers may optionally read or write additional markers within the
+    #     passed `context` dict from the current batch.
+    #     """
+    #     avro_record = fix_recursive_types_in_dict(record, self.schema['properties'])
+
+    #     if "records" not in context:
+    #         context["records"] = []
+
+    #     context["records"].append(avro_record)
 
     def process_batch(self, context: dict) -> None:
         """Write out any prepped records and return once fully written."""
 
-        with open(context["temp_file"], "wb") as tempfile:
-            writer(tempfile, self.parsed_schema, context["records"])
+        batch_id = context.get("batch_id", "nobatch")
 
-        with open(context["temp_file"], "r+b") as tempfile:
-            self.load_table_from_file(tempfile, context["batch_id"])
+        #self.logger.info(f"process batch id: {context['batch_id']}")
+        #self.logger.info(f"process batch context: {context}")
+        #self.logger.info(f"parsed schema: {self.parsed_schema}")
+        #self.logger.info(f"props: {self.schema['properties']}")
+        #self.logger.info(f"raw: {context['records'][0]}")
+        #self.logger.info(f"fixed props: {fix_recursive_types_in_dict(context['records'][0]['record'], self.schema['properties'])}")
+
+        avro_records = (
+            fix_recursive_types_in_dict(record, self.schema['properties'])
+            for record in context["records"]
+        )
+        _, temp_file = mkstemp()
+        self.logger.info(f"Avro {temp_file}")
+
+        with open(temp_file, "wb") as tempfile:
+            writer(tempfile, self.parsed_schema, avro_records)
+
+        with open(temp_file, "r+b") as tempfile:
+            self.load_table_from_file(tempfile, batch_id)
 
         # Delete temp file once we are done with it
-        Path(context["temp_file"]).unlink()
+        Path(temp_file).unlink()
 
         self.create_table(self.table_name, expires=False)
 
         self.query([
-            self.update_from_temp_table(context["batch_id"]),
-            self.drop_temp_table(context["batch_id"]),
+            self.update_from_temp_table(batch_id),
+            self.drop_temp_table(batch_id),
         ])
-
-

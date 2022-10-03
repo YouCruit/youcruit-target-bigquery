@@ -1,10 +1,20 @@
+from io import StringIO
 import os
 
 
-def get_test_tap_lines(filename):
-    lines = []
-    with open('{}/resources/{}'.format(os.path.dirname(__file__), filename)) as tap_stdout:
-        for line in tap_stdout.readlines():
-            lines.append(line)
+def get_test_tap_lines(filename: str) -> StringIO:
+    """Returns an IO-stream with some singer tap output"""
+    stream = StringIO()
 
-    return lines
+    resources_path = os.path.join(os.path.dirname(__file__), 'resources')
+    filepath = os.path.join(resources_path, filename)
+    with open(filepath) as tap_stdout:
+        for line in tap_stdout.readlines():
+            print(
+                line.replace('PATHGOESHERE', resources_path),
+                end='',
+                file=stream,
+            )
+
+    stream.seek(0)
+    return stream

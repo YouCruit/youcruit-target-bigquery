@@ -59,10 +59,6 @@ class TargetBigQuery(Target):
 
     default_sink_class = BigQuerySink
 
-    def get_client(self, project_id: str, location: str = None) -> bigquery.Client:
-        """Returns a Google Client. This is a method so it can be mocked in tests."""
-        return bigquery.Client(project=project_id, location=location)
-
 
 if __name__ == "__main__":
     TargetBigQuery.cli()

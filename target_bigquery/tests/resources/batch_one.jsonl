@@ -1,0 +1,5 @@
+{"type": "STATE", "value": {"currently_syncing": "batch_test"}}
+{"type": "SCHEMA", "stream": "batch_test", "schema": {"properties": {"c_pk": {"inclusion": "automatic", "minimum": -2147483648, "maximum": 2147483647, "type": ["integer"]}, "c_varchar": {"inclusion": "available", "maxLength": 16, "type": ["null", "string"]}, "c_int": {"inclusion": "available", "minimum": -2147483648, "maximum": 2147483647, "type": ["null", "integer"]}}, "type": "object"}, "key_properties": ["c_pk"]}
+{"type": "BATCH", "stream": "batch_test", "encoding": { "format": "jsonl", "compression": "gzip"}, "manifest": ["file://PATHGOESHERE/batch_records.jsonl.gz"]}
+{"type": "STATE", "value": {"currently_syncing": "batch_test"}}
+{"type": "STATE", "value": {"currently_syncing": "batch_test", "bookmarks": {"batch_test": {"initial_full_table_complete": true}}}}

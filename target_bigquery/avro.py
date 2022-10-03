@@ -5,7 +5,7 @@ from datetime import date, datetime
 from decimal import Decimal, getcontext
 import json
 import re
-from typing import List
+from typing import Any, Iterable, List, Optional, Union
 
 
 PRECISION = 38
@@ -16,7 +16,11 @@ ALLOWED_DECIMALS = Decimal(10) ** Decimal(-SCALE)
 MAX_NUM = (Decimal(10) ** Decimal(PRECISION-SCALE)) - ALLOWED_DECIMALS
 
 
-def fix_recursive_types_in_array(data, props):
+global schema_collision_counter
+schema_collision_counter = 0
+
+
+def fix_recursive_types_in_array(data: Optional[Iterable], props: dict):
     """
     Recursively walks the array to find datetimes and such
     """
@@ -29,7 +33,7 @@ def fix_recursive_types_in_array(data, props):
     ]
 
 
-def fix_recursive_types_in_dict(data, schema):
+def fix_recursive_types_in_dict(data: Optional[dict], schema :dict):
     """
     Recursively walks the object to find datetimes and such
     """
@@ -45,7 +49,7 @@ def fix_recursive_types_in_dict(data, schema):
     return result
 
 
-def fix_recursive_inner(value, props):
+def fix_recursive_inner(value: Optional[Any], props: dict):
     """
     Recursively walks the item to find datetimes and such
     """
@@ -73,12 +77,12 @@ def fix_recursive_inner(value, props):
         return value
 
 
-def is_unstructured_object(props):
+def is_unstructured_object(props: dict) -> bool:
     """Check if property is object and it has no properties."""
     return 'object' in props['type'] and 'properties' not in props
 
 
-def parse_datetime(dt):
+def parse_datetime(dt: Any) -> Optional[Union[datetime, date]]:
     try:
         if isinstance(dt, date):
             return dt
@@ -95,11 +99,12 @@ def column_type_avro(name: str, schema_property: dict, nullable: bool) -> dict:
     global schema_collision_counter
     property_type = schema_property['type']
     property_format = schema_property.get('format', None)
-    result = {"name": name}
+    result: dict[str, Union[str, dict, list]] = {"name": name}
+    result_type: Union[str, dict[str, Union[Any, str]]] = ""
 
     if 'array' in property_type:
         try:
-            items_type = column_type_avro(name, schema_property['items'])
+            items_type = column_type_avro(name, schema_property['items']) # type: ignore
             result_type = {
                 'type': 'array',
                 'items': items_type['type']}
@@ -107,7 +112,7 @@ def column_type_avro(name: str, schema_property: dict, nullable: bool) -> dict:
             result_type = 'string'
     elif 'object' in property_type:
         items_types = [
-            column_type_avro(col, schema_property)
+            column_type_avro(col, schema_property) # type: ignore
             for col, schema_property in schema_property.get('properties', {}).items()]
 
         if items_types:
