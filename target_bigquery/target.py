@@ -3,14 +3,15 @@
 from __future__ import annotations
 from pathlib import PurePath
 from pydoc import describe
-from typing import List, Optional, Union
+from typing import List, Optional, Type, Union
 
 from singer_sdk.target_base import Target
 from singer_sdk import typing as th
 from singer_sdk.helpers._batch import BaseBatchFileEncoding
-from google.cloud import bigquery
+from singer_sdk.sinks import Sink
 
 from .sinks import (
+    BigQueryAsyncSink,
     BigQuerySink,
 )
 
@@ -46,9 +47,20 @@ class TargetBigQuery(Target):
             required=False,
             default=None,
         ),
+         th.Property(
+            "mode",
+            th.StringType,
+            description="If 'ASYNC' then files are loaded in parallel",
+            required=False,
+            default='DEFAULT',
+        ),
     ).to_dict()
 
-    default_sink_class = BigQuerySink
+    def get_sink_class(self, stream_name: str) -> Type[Sink]:
+        if self.config.get('mode', 'DEFAULT').lower() == 'async':
+            return BigQueryAsyncSink
+        else:
+            return BigQuerySink
 
     def _process_batch_message(self, message_dict: dict) -> None:
         """Overridden because Meltano 0.11.1 has a bad implementation see

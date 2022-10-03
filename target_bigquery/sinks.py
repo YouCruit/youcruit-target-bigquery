@@ -116,16 +116,7 @@ class BigQuerySink(BatchSink):
         """Returns a DROP TABLE statement"""
         return f"DROP TABLE `{self.dataset_id}`.`{self.temp_table_name(batch_id)}`"
 
-    def table_exists(self) -> bool:
-        """Check if table already exists"""
-        tables = self.query([f"SELECT table_name FROM {self.dataset_id}.INFORMATION_SCHEMA.TABLES"])
-        for table in tables:
-            table_name = table['table_name']
-            if table_name == self.table_name:
-                return True
-        return False
-
-    def query(self, queries: List[str]) -> bigquery.table.RowIterator:
+    def query(self, queries: List[str]) -> bigquery.QueryJob:
         """Executes the queries and returns when they have completed"""
         job_config = bigquery.QueryJobConfig()
         job_config.query_parameters = []
@@ -134,10 +125,9 @@ class BigQuerySink(BatchSink):
 
         query_job = self.client.query(joined_queries, job_config=job_config)
 
-        # Starts job and waits for result
-        return query_job.result()
+        return query_job
 
-    def load_table_from_file(self, filehandle: BinaryIO, batch_id: str) -> None:
+    def load_table_from_file(self, filehandle: BinaryIO, batch_id: str) -> bigquery.LoadJob:
         """Starts a load job for the given file. Returns once the job is completed"""
         self.create_table(self.temp_table_name(batch_id), expires=True)
 
@@ -151,8 +141,8 @@ class BigQuerySink(BatchSink):
 
         job = self.client.load_table_from_file(filehandle, table_ref, job_config=job_config)
 
-        # Starts job and waits for result
-        job.result()
+        return job
+
 
     def start_batch(self, context: dict) -> None:
         """Start a new batch with the given context.
@@ -184,17 +174,23 @@ class BigQuerySink(BatchSink):
             writer(tempfile, self.parsed_schema, avro_records)
 
         with open(temp_file, "r+b") as tempfile:
-            self.load_table_from_file(tempfile, batch_id)
+            ljob = self.load_table_from_file(tempfile, batch_id)
 
         # Delete temp file once we are done with it
         Path(temp_file).unlink()
 
+        # Create table while we wait for load job to finish
         self.create_table(self.table_name, expires=False)
 
-        self.query([
+        # Await result of load before merging data
+        ljob.result()
+
+        qjob = self.query([
             self.update_from_temp_table(batch_id),
             self.drop_temp_table(batch_id),
         ])
+
+        qjob.result()
 
         self.logger.info(f"Finished batch {batch_id}")
 
@@ -234,3 +230,101 @@ class BigQuerySink(BatchSink):
                 raise NotImplementedError(
                     f"Unsupported batch encoding format: {encoding.format}"
                 )
+
+
+class BigQueryAsyncSink(BigQuerySink):
+    """BigQuery target sink class which processes batch files kinda in parallel."""
+
+    def first_load_into_temp_tables(self, context: dict) -> bigquery.LoadJob:
+        batch_id = context["batch_id"]
+
+        self.logger.info(f"Creating load job for {batch_id}...")
+
+        avro_records = (
+            fix_recursive_types_in_dict(record, self.schema['properties'])
+            for record in context["records"]
+        )
+        _, temp_file = mkstemp()
+
+        with open(temp_file, "wb") as tempfile:
+            writer(tempfile, self.parsed_schema, avro_records)
+
+        with open(temp_file, "r+b") as tempfile:
+            job = self.load_table_from_file(tempfile, batch_id)
+
+        # Delete temp file once we are done with it
+        Path(temp_file).unlink()
+
+        return job
+
+    def then_merge_and_drop_temp_table(self, context: dict) -> bigquery.QueryJob:
+        batch_id = context["batch_id"]
+        self.logger.info(f"Creating merge job for {batch_id}...")
+        return self.query([
+            self.update_from_temp_table(batch_id),
+            self.drop_temp_table(batch_id),
+        ])
+
+    def process_batch_files(
+        self,
+        encoding: BaseBatchFileEncoding,
+        files: Sequence[str],
+    ) -> None:
+        """Overridden because Meltano 0.11.1 has a bad implementation see
+        https://github.com/meltano/sdk/issues/1031
+        """
+        file: GzipFile | IO
+        storage: StorageTarget | None = None
+
+        contexts: list[dict] = []
+        load_jobs: list[bigquery.LoadJob] = []
+        merge_jobs: list[bigquery.QueryJob] = []
+
+        for path in files:
+            head, tail = StorageTarget.split_url(path)
+
+            if self.batch_config:
+                storage = self.batch_config.storage
+            else:
+                storage = StorageTarget.from_url(head)
+
+            if encoding.format == BatchFileFormat.JSONL:
+                with storage.fs(create=False) as batch_fs:
+                    with batch_fs.open(tail, mode="rb") as file:
+                        if encoding.compression == "gzip":
+                            file = gzip_open(file)
+                        context = {
+                            "batch_id": str(uuid.uuid4()),
+                            "batch_start_time": datetime.now(),
+                        }
+                        contexts.append(context)
+                        self.start_batch(context)
+                        # Making this a generator instead - no need to store lines in memory for avro conversion
+                        context["records"] = (json.loads(line) for line in file)
+
+                        #self.process_batch(context)
+                        load_jobs.append(
+                            self.first_load_into_temp_tables(context)
+                        )
+            else:
+                raise NotImplementedError(
+                    f"Unsupported batch encoding format: {encoding.format}"
+                )
+
+        # Create table while we wait for load job to finish
+        self.create_table(self.table_name, expires=False)
+
+         # Wait for load jobs to complete
+        for load_job in load_jobs:
+            load_job.result()
+
+        # TODO requires testing, is it safe to merge in parallel?
+        for context in contexts:
+            merge_jobs.append(
+                self.then_merge_and_drop_temp_table(context)
+            )
+
+        for merge_job in merge_jobs:
+            merge_job.result()
+
+        self.logger.info(f"Processed {len(files)} batch files")
