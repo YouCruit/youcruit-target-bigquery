@@ -144,60 +144,17 @@ class BigQuerySink(BatchSink):
         # Starts job and waits for result
         job.result()
 
-    def start_batch(self, context: dict) -> None:
-        super().start_batch(context)
-
-        self.logger.info("Starting my batch")
-
-    def process_record(self, record: dict, context: dict) -> None:
-        super().process_record(record, context)
-
-        self.logger.info("Processing my record")
-
-
-    # def start_batch(self, context: dict) -> None:
-    #     """Start a batch.
-
-    #     Developers may optionally add additional markers to the `context` dict,
-    #     which is unique to this batch.
-    #     """
-    #     if not self.key_properties:
-    #         raise Exception("Missing key_properties (e.g. primary key(s)) in schema!")
-
-    #     _, temp_file = mkstemp()
-    #     context["temp_file"] = temp_file
-
-    # def process_record(self, record: dict, context: dict) -> None:
-    #     """Process the record.
-
-    #     Developers may optionally read or write additional markers within the
-    #     passed `context` dict from the current batch.
-    #     """
-    #     avro_record = fix_recursive_types_in_dict(record, self.schema['properties'])
-
-    #     if "records" not in context:
-    #         context["records"] = []
-
-    #     context["records"].append(avro_record)
-
     def process_batch(self, context: dict) -> None:
         """Write out any prepped records and return once fully written."""
 
+        # TODO randomize
         batch_id = context.get("batch_id", "nobatch")
-
-        #self.logger.info(f"process batch id: {context['batch_id']}")
-        #self.logger.info(f"process batch context: {context}")
-        #self.logger.info(f"parsed schema: {self.parsed_schema}")
-        #self.logger.info(f"props: {self.schema['properties']}")
-        #self.logger.info(f"raw: {context['records'][0]}")
-        #self.logger.info(f"fixed props: {fix_recursive_types_in_dict(context['records'][0]['record'], self.schema['properties'])}")
 
         avro_records = (
             fix_recursive_types_in_dict(record, self.schema['properties'])
             for record in context["records"]
         )
         _, temp_file = mkstemp()
-        self.logger.info(f"Avro {temp_file}")
 
         with open(temp_file, "wb") as tempfile:
             writer(tempfile, self.parsed_schema, avro_records)

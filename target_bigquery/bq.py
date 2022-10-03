@@ -34,15 +34,15 @@ def column_type(name: str, schema_property: dict, nullable: bool) -> SchemaField
         return SchemaField(name, result_type, 'NULLABLE' if nullable else 'REQUIRED')
 
 
-def handle_record_type(name, schema_property, mode="NULLABLE"):
-    fields = [column_type(col, t) for col, t in schema_property.get('properties', {}).items()]
+def handle_record_type(name, schema_property, mode="NULLABLE") -> SchemaField:
+    fields = [column_type(col, t) for col, t in schema_property.get('properties', {}).items()] # type: ignore
     if fields:
         return SchemaField(name, 'RECORD', mode, fields=fields)
     else:
         return SchemaField(name, 'string', mode)
 
 
-def bigquery_type(property_type: Iterable, property_format: str):
+def bigquery_type(property_type: Iterable, property_format: str) -> str:
     # Every date-time JSON value is currently mapped to TIMESTAMP WITHOUT TIME ZONE
     #
     # TODO: Detect if timezone postfix exists in the JSON and find if DATETIME or
