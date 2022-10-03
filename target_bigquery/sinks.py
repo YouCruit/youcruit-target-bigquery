@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 from tempfile import mkstemp
 from typing import IO, BinaryIO, Dict, List, Optional, Sequence
+import uuid
 
 from singer_sdk.sinks import BatchSink
 from singer_sdk.plugin_base import PluginBase
@@ -221,7 +222,11 @@ class BigQuerySink(BatchSink):
                     with batch_fs.open(tail, mode="rb") as file:
                         if encoding.compression == "gzip":
                             file = gzip_open(file)
-                        context = self._get_context(None)
+                        context = {
+                            "batch_id": str(uuid.uuid4()),
+                            "batch_start_time": datetime.now(),
+                        }
+                        self.start_batch(context)
                         # Making this a generator instead - no need to store lines in memory for avro conversion
                         context["records"] = (json.loads(line) for line in file)
                         self.process_batch(context)
