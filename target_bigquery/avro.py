@@ -20,7 +20,7 @@ global schema_collision_counter
 schema_collision_counter = 0
 
 
-def fix_recursive_types_in_array(data: Optional[Iterable], props: dict):
+def fix_recursive_types_in_array(data: Optional[Iterable], props: dict) -> Optional[list]:
     """
     Recursively walks the array to find datetimes and such
     """
@@ -33,7 +33,7 @@ def fix_recursive_types_in_array(data: Optional[Iterable], props: dict):
     ]
 
 
-def fix_recursive_types_in_dict(data: Optional[dict], schema :dict):
+def fix_recursive_types_in_dict(data: Optional[dict], schema :dict) -> Optional[dict]:
     """
     Recursively walks the object to find datetimes and such
     """
@@ -49,7 +49,7 @@ def fix_recursive_types_in_dict(data: Optional[dict], schema :dict):
     return result
 
 
-def fix_recursive_inner(value: Optional[Any], props: dict):
+def fix_recursive_inner(value: Optional[Any], props: dict) -> Optional[Union[str, Decimal, date, datetime, list, dict]]:
     """
     Recursively walks the item to find datetimes and such
     """
