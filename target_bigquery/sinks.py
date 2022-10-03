@@ -2,13 +2,22 @@
 
 from __future__ import annotations
 from datetime import datetime, timedelta
+from gzip import GzipFile
+from gzip import open as gzip_open
 from io import BufferedRandom
+import json
 from pathlib import Path
 from tempfile import mkstemp
-from typing import BinaryIO, Dict, List, Optional
+from typing import IO, BinaryIO, Dict, List, Optional, Sequence
 
 from singer_sdk.sinks import BatchSink
 from singer_sdk.plugin_base import PluginBase
+from singer_sdk.helpers._batch import (
+    BaseBatchFileEncoding,
+    BatchConfig,
+    BatchFileFormat,
+    StorageTarget,
+)
 from fastavro import writer, parse_schema
 from google.cloud import bigquery
 
@@ -144,11 +153,25 @@ class BigQuerySink(BatchSink):
         # Starts job and waits for result
         job.result()
 
+    def start_batch(self, context: dict) -> None:
+        """Start a new batch with the given context.
+
+        The SDK-generated context will contain `batch_id` (GUID string) and
+        `batch_start_time` (datetime).
+
+        Developers may optionally override this method to add custom markers to the
+        `context` dict and/or to initialize batch resources - such as initializing a
+        local temp file to hold batch records before uploading.
+
+        Args:
+            context: Stream partition or context dictionary.
+        """
+        batch_id = context["batch_id"]
+        self.logger.info(f"Starting batch {batch_id}")
+
     def process_batch(self, context: dict) -> None:
         """Write out any prepped records and return once fully written."""
-
-        # TODO randomize
-        batch_id = context.get("batch_id", "nobatch")
+        batch_id = context["batch_id"]
 
         avro_records = (
             fix_recursive_types_in_dict(record, self.schema['properties'])
@@ -171,3 +194,38 @@ class BigQuerySink(BatchSink):
             self.update_from_temp_table(batch_id),
             self.drop_temp_table(batch_id),
         ])
+
+        self.logger.info(f"Finished batch {batch_id}")
+
+    def process_batch_files(
+        self,
+        encoding: BaseBatchFileEncoding,
+        files: Sequence[str],
+    ) -> None:
+        """Overridden because Meltano 0.11.1 has a bad implementation see
+        https://github.com/meltano/sdk/issues/1031
+        """
+        file: GzipFile | IO
+        storage: StorageTarget | None = None
+
+        for path in files:
+            head, tail = StorageTarget.split_url(path)
+
+            if self.batch_config:
+                storage = self.batch_config.storage
+            else:
+                storage = StorageTarget.from_url(head)
+
+            if encoding.format == BatchFileFormat.JSONL:
+                with storage.fs(create=False) as batch_fs:
+                    with batch_fs.open(tail, mode="rb") as file:
+                        if encoding.compression == "gzip":
+                            file = gzip_open(file)
+                        context = self._get_context(None)
+                        # Making this a generator instead - no need to store lines in memory for avro conversion
+                        context["records"] = (json.loads(line) for line in file)
+                        self.process_batch(context)
+            else:
+                raise NotImplementedError(
+                    f"Unsupported batch encoding format: {encoding.format}"
+                )

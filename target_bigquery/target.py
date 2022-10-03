@@ -7,6 +7,7 @@ from typing import List, Optional, Union
 
 from singer_sdk.target_base import Target
 from singer_sdk import typing as th
+from singer_sdk.helpers._batch import BaseBatchFileEncoding
 from google.cloud import bigquery
 
 from .sinks import (
@@ -45,19 +46,21 @@ class TargetBigQuery(Target):
             required=False,
             default=None,
         ),
-        # th.Property(
-        #     "stream_maps",
-        #     th.ObjectType,
-        #     description="Define an optional transform of the incoming data",
-        # ),
-        # th.Property(
-        #     "stream_map_config",
-        #     th.ObjectType,
-        #     description="Optional config options be used inside the stream map",
-        # ),
     ).to_dict()
 
     default_sink_class = BigQuerySink
+
+    def _process_batch_message(self, message_dict: dict) -> None:
+        """Overridden because Meltano 0.11.1 has a bad implementation see
+        https://github.com/meltano/sdk/issues/1031
+        """
+        sink = self.get_sink(message_dict["stream"])
+
+        encoding = BaseBatchFileEncoding.from_dict(message_dict["encoding"])
+        sink.process_batch_files(
+            encoding,
+            message_dict["manifest"],
+        )
 
 
 if __name__ == "__main__":
