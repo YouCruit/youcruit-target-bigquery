@@ -137,8 +137,8 @@ class BigQuerySink(BatchSink):
         # Starts job and waits for result
         return query_job.result()
 
-    def load_table_from_file(self, filehandle: BinaryIO, batch_id: str) -> None:
-        """Starts a load job for the given file. Returns once the job is completed"""
+    def load_table_from_file(self, filehandle: BinaryIO, batch_id: str) -> bigquery.LoadJob:
+        """Starts a load job for the given file."""
         self.create_table(self.temp_table_name(batch_id), expires=True)
 
         dataset_ref = self.client.dataset(self.dataset_id)
@@ -151,8 +151,7 @@ class BigQuerySink(BatchSink):
 
         job = self.client.load_table_from_file(filehandle, table_ref, job_config=job_config)
 
-        # Starts job and waits for result
-        job.result()
+        return job
 
     def start_batch(self, context: dict) -> None:
         """Start a new batch with the given context.
@@ -168,11 +167,13 @@ class BigQuerySink(BatchSink):
             context: Stream partition or context dictionary.
         """
         batch_id = context["batch_id"]
-        self.logger.info(f"Starting batch {batch_id}")
+        self.logger.info(f"[{self.stream_name}][{batch_id}] Starting batch")
 
     def process_batch(self, context: dict) -> None:
         """Write out any prepped records and return once fully written."""
         batch_id = context["batch_id"]
+
+        self.logger.info(f"[{self.stream_name}][{batch_id}] Converting to avro...")
 
         avro_records = (
             fix_recursive_types_in_dict(record, self.schema['properties'])
@@ -183,20 +184,25 @@ class BigQuerySink(BatchSink):
         with open(temp_file, "wb") as tempfile:
             writer(tempfile, self.parsed_schema, avro_records)
 
+        self.logger.info(f"[{self.stream_name}][{batch_id}] Uploading LoadJob...")
+
         with open(temp_file, "r+b") as tempfile:
-            self.load_table_from_file(tempfile, batch_id)
+            load_job = self.load_table_from_file(tempfile, batch_id)
 
         # Delete temp file once we are done with it
         Path(temp_file).unlink()
 
         self.create_table(self.table_name, expires=False)
 
+        # Await job to finish
+        load_job.result()
+
         self.query([
             self.update_from_temp_table(batch_id),
             self.drop_temp_table(batch_id),
         ])
 
-        self.logger.info(f"Finished batch {batch_id}")
+        self.logger.info(f"[{self.stream_name}][{batch_id}] Finished batch")
 
     def process_batch_files(
         self,
@@ -210,7 +216,7 @@ class BigQuerySink(BatchSink):
         storage: StorageTarget | None = None
 
         for path in files:
-            self.logger.info(f"Processing batch file {path}")
+            self.logger.info(f"[{self.stream_name}] Processing batch file {path}")
             head, tail = StorageTarget.split_url(path)
 
             if self.batch_config:
@@ -235,3 +241,7 @@ class BigQuerySink(BatchSink):
                 raise NotImplementedError(
                     f"Unsupported batch encoding format: {encoding.format}"
                 )
+
+            # Delete once we're done
+            self.logger.info(f"[{self.stream_name}] Deleting batch file {path}")
+            Path(path).unlink()
