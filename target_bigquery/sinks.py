@@ -241,7 +241,3 @@ class BigQuerySink(BatchSink):
                 raise NotImplementedError(
                     f"Unsupported batch encoding format: {encoding.format}"
                 )
-
-            # Delete once we're done
-            self.logger.info(f"[{self.stream_name}] Deleting batch file {path}")
-            Path(path).unlink()
