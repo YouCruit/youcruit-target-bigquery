@@ -210,6 +210,7 @@ class BigQuerySink(BatchSink):
         storage: StorageTarget | None = None
 
         for path in files:
+            self.logger.info(f"Processing batch file {path}")
             head, tail = StorageTarget.split_url(path)
 
             if self.batch_config:

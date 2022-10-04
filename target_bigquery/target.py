@@ -35,14 +35,14 @@ class TargetBigQuery(Target):
         th.Property(
             "location",
             th.StringType,
-            description="Location of the dataset",
+            description="Dataset location",
             required=False,
             default=None,
         ),
         th.Property(
             "table_prefix",
             th.StringType,
-            description="Prefix of destination table name",
+            description="Optional prefix to add to table names",
             required=False,
             default=None,
         ),
