@@ -113,13 +113,13 @@ def column_type_avro(name: str, schema_property: dict, nullable: bool) -> dict:
 
     if "array" in property_type:
         try:
-            items_type = column_type_avro(name, schema_property["items"])  # type: ignore
+            items_type = column_type_avro(name, schema_property["items"], nullable=True)  # type: ignore
             result_type = {"type": "array", "items": items_type["type"]}
         except KeyError:
             result_type = "string"
     elif "object" in property_type:
         items_types = [
-            column_type_avro(col, schema_property)  # type: ignore
+            column_type_avro(col, schema_property, nullable=True)  # type: ignore
             for col, schema_property in schema_property.get("properties", {}).items()
         ]
 
