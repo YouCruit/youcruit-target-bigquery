@@ -109,7 +109,7 @@ def column_type_avro(name: str, schema_property: dict, nullable: bool) -> dict:
     try:
         property_type = schema_property["type"]
     except KeyError as e:
-        raise KeyError(f"KeyError on fetching [{name}] 'type' from {schema_property}")
+        raise KeyError(f"Column [{name}] did not have a defined type in the schema")
 
     property_format = schema_property.get("format", None)
     result: dict[str, Union[str, dict, list]] = {"name": name}
