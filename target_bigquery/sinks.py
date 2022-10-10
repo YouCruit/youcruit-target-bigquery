@@ -28,9 +28,6 @@ from .avro import avro_schema, fix_recursive_types_in_dict
 class BigQuerySink(BatchSink):
     """BigQuery target sink class."""
 
-    # Max records to write in one batch
-    max_size = 10000
-
     def __init__(
         self,
         target: PluginBase,
@@ -51,6 +48,15 @@ class BigQuerySink(BatchSink):
             raise Exception("Missing key_properties (e.g. primary key(s)) in schema!")
 
         self.client: bigquery.Client = get_client(self.project_id, self.location)
+
+    @property
+    def max_size(self) -> int:
+        """Get maximum batch size.
+
+        Returns:
+            Maximum batch size
+        """
+        return self.config.get("batch_size", 10000)
 
     @property
     def table_name(self) -> str:

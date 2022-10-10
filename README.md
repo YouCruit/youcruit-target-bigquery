@@ -4,33 +4,14 @@
 
 Build with the [Meltano Target SDK](https://sdk.meltano.com).
 
+## Capabilities
+
+* `about`
+* `stream-maps`
+* `schema-flattening`
+
+## Settings
 <!--
-
-Developer TODO: Update the below as needed to correctly describe the install procedure. For instance, if you do not have a PyPi repo, or if you want users to directly install from your git repo, you can modify this step as appropriate.
-
-## Installation
-
-Install from PyPi:
-
-```bash
-pipx install target-bigquery
-```
-
-Install from GitHub:
-
-```bash
-pipx install git+https://github.com/ORG_NAME/target-bigquery.git@main
-```
-
--->
-
-## Configuration
-
-### Accepted Config Options
-
-<!--
-Developer TODO: Provide a list of config options accepted by the target.
-
 This section can be created by copy-pasting the CLI output from:
 
 ```
@@ -38,12 +19,21 @@ target-bigquery --about --format=markdown
 ```
 -->
 
-A full list of supported settings and capabilities for this
-target is available by running:
+| Setting             | Required | Default | Description |
+|:--------------------|:--------:|:-------:|:------------|
+| project_id          | True     | None    | Google project id |
+| dataset             | True     | None    | Dataset to load data into |
+| location            | False    | None    | Dataset location |
+| table_prefix        | False    | None    | Optional prefix to add to table names |
+| batch_size          | False    |   10000 | Maximum size of batches when records are streamed in. BATCH messages are not affected by this property. |
+| add_record_metadata | False    |    True | Add Singer Data Capture (SDC) metadata to records |
+| stream_maps         | False    | None    | Config object for stream maps capability. For more information check out [Stream Maps](https://sdk.meltano.com/en/latest/stream_maps.html). |
+| stream_map_config   | False    | None    | User-defined config values to be used within map expressions. |
+| flattening_enabled  | False    | None    | 'True' to enable schema flattening and automatically expand nested properties. |
+| flattening_max_depth| False    | None    | The max depth to flatten schemas. |
 
-```bash
-target-bigquery --about
-```
+A full list of supported settings and capabilities is available by running: `target-bigquery --about`
+
 
 ### Configure using environment variables
 
@@ -51,11 +41,10 @@ This Singer target will automatically import any environment variables within th
 `.env` if the `--config=ENV` is provided, such that config values will be considered if a matching
 environment variable is set either in the terminal context or in the `.env` file.
 
-### Source Authentication and Authorization
+### Google authentication
 
-<!--
-Developer TODO: If your target requires special access on the destination system, or any special authentication requirements, provide those here.
--->
+Google authentication is done by providing a path to a service account JSON file in the environment variable
+`GOOGLE_APPLICATION_CREDENTIALS`
 
 ## Usage
 
@@ -100,12 +89,6 @@ poetry run target-bigquery --help
 
 _**Note:** This target will work in any Singer environment and does not require Meltano.
 Examples here are for convenience and to streamline end-to-end orchestration scenarios._
-
-<!--
-Developer TODO:
-Your project comes with a custom `meltano.yml` project file already created. Open the `meltano.yml` and follow any "TODO" items listed in
-the file.
--->
 
 Next, install Meltano (if you haven't already) and any needed plugins:
 

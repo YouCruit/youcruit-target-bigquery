@@ -8,7 +8,6 @@ from typing import List, Optional, Union
 from singer_sdk.target_base import Target
 from singer_sdk import typing as th
 from singer_sdk.helpers._batch import BaseBatchFileEncoding
-from google.cloud import bigquery
 
 from .sinks import (
     BigQuerySink,
@@ -45,6 +44,20 @@ class TargetBigQuery(Target):
             description="Optional prefix to add to table names",
             required=False,
             default=None,
+        ),
+        th.Property(
+            "batch_size",
+            th.IntegerType,
+            description="Maximum size of batches when records are streamed in. BATCH messages are not affected by this property.",
+            required=False,
+            default=10000,
+        ),
+        th.Property(
+            "add_record_metadata",
+            th.BooleanType,
+            description="Add Singer Data Capture (SDC) metadata to records",
+            required= False,
+            default=True,
         ),
     ).to_dict()
 
