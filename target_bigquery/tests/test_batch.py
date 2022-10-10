@@ -1,5 +1,6 @@
 """Tests the Batch Sink"""
-from unittest.mock import patch
+from collections import namedtuple
+from unittest.mock import Mock, patch
 
 from ..target import TargetBigQuery
 from . import test_utils
@@ -8,6 +9,7 @@ from . import test_utils
 MINIMAL_CONFIG = {
     "project_id": "projid",
     "dataset": "dataid",
+    "add_record_metadata": False,
 }
 
 
@@ -124,3 +126,40 @@ def test_loads_batch_three(mock_client):
     )
     # Awaiting job
     mock_client.return_value.query.return_value.result.assert_called()
+
+
+@patch("target_bigquery.bq.Client", autospec=True)
+def test_creates_missing_columns_for_existing_tables(mock_client):
+    Field = namedtuple("Field", ["name"])
+
+    mock_client.return_value.get_table.return_value.schema = [
+        Field("c_pk"),
+        Field("c_varchar"),
+    ]
+
+    target = TargetBigQuery(config=MINIMAL_CONFIG)
+
+    tap_lines = test_utils.get_test_tap_lines("records_one_stream.jsonl")
+
+    target.listen(file_input=tap_lines)
+
+    mock_client.return_value.update_table.assert_called_once()
+
+
+@patch("target_bigquery.bq.Client", autospec=True)
+def test_creates_does_not_create_columns_when_all_there(mock_client):
+    Field = namedtuple("Field", ["name"])
+
+    mock_client.return_value.get_table.return_value.schema = [
+        Field("c_pk"),
+        Field("c_varchar"),
+        Field("c_int"),
+    ]
+
+    target = TargetBigQuery(config=MINIMAL_CONFIG)
+
+    tap_lines = test_utils.get_test_tap_lines("records_one_stream.jsonl")
+
+    target.listen(file_input=tap_lines)
+
+    mock_client.return_value.update_table.assert_not_called()

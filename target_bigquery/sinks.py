@@ -51,6 +51,7 @@ class BigQuerySink(BatchSink):
             raise Exception("Missing key_properties (e.g. primary key(s)) in schema!")
 
         self.client: bigquery.Client = get_client(self.project_id, self.location)
+        self.once_jobs_done = False
 
     @property
     def max_size(self) -> int:
@@ -127,6 +128,39 @@ class BigQuerySink(BatchSink):
                 return True
         return False
 
+    def ensure_columns_exist(self):
+        """Ensures all columns present in the Singer Schema are also present in Big Query"""
+        table_ref = self.client.dataset(self.dataset_id).table(self.table_name)
+        table = self.client.get_table(table_ref)
+
+        self.logger.info(f"Errr {table}, {table.schema}")
+
+        table_columns = [field.name for field in table.schema]
+
+        self.logger.info(f"Table cols: {table_columns}")
+
+        schema_columns = self.schema["properties"]
+
+        self.logger.info(f"Schema cols: {schema_columns}")
+
+        columns_to_add = [
+            column_type(col, coltype, nullable=True)
+            for col, coltype in schema_columns.items()
+            if col not in table_columns
+        ]
+
+        self.logger.info(f"Cols to add: {columns_to_add}")
+
+        if columns_to_add:
+            new_schema = table.schema.copy()
+            for new_col in columns_to_add:
+                new_schema.append(new_col)
+                self.logger.info(f"Adding column {new_col.name}")
+
+            table.schema = new_schema
+            self.logger.info("Adding cols")
+            self.client.update_table(table, ["schema"])
+
     def query(self, queries: List[str]) -> bigquery.table.RowIterator:
         """Executes the queries and returns when they have completed"""
         job_config = bigquery.QueryJobConfig()
@@ -198,7 +232,10 @@ class BigQuerySink(BatchSink):
         # Delete temp file once we are done with it
         Path(temp_file).unlink()
 
-        self.create_table(self.table_name, expires=False)
+        if not self.once_jobs_done:
+            self.create_table(self.table_name, expires=False)
+            self.ensure_columns_exist()
+            self.once_jobs_done = True
 
         # Await job to finish
         load_job.result()
