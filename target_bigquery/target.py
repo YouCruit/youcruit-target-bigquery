@@ -56,7 +56,7 @@ class TargetBigQuery(Target):
             "add_record_metadata",
             th.BooleanType,
             description="Add Singer Data Capture (SDC) metadata to records",
-            required= False,
+            required=False,
             default=True,
         ),
     ).to_dict()

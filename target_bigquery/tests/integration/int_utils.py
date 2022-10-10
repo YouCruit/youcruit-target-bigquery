@@ -8,7 +8,7 @@ def get_client() -> bigquery.Client:
     """Returns Google client"""
     return bigquery.Client(
         project=os.environ.get("TARGET_BIGQUERY_PROJECT_ID"),
-        location=os.environ.get("TARGET_BIGQUERY_LOCATION")
+        location=os.environ.get("TARGET_BIGQUERY_LOCATION"),
     )
 
 

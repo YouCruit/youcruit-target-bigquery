@@ -25,6 +25,7 @@ from google.cloud import bigquery
 from .bq import column_type, get_client
 from .avro import avro_schema, fix_recursive_types_in_dict
 
+
 class BigQuerySink(BatchSink):
     """BigQuery target sink class."""
 
@@ -37,12 +38,14 @@ class BigQuerySink(BatchSink):
     ) -> None:
         super().__init__(target, stream_name, schema, key_properties)
 
-        self.project_id = target.config['project_id']
-        self.location = target.config.get('location', None)
-        self.dataset_id = target.config['dataset']
-        self.table_prefix = target.config.get('table_prefix', None)
+        self.project_id = target.config["project_id"]
+        self.location = target.config.get("location", None)
+        self.dataset_id = target.config["dataset"]
+        self.table_prefix = target.config.get("table_prefix", None)
 
-        self.parsed_schema = parse_schema(avro_schema(self.stream_name, self.schema, self.key_properties))
+        self.parsed_schema = parse_schema(
+            avro_schema(self.stream_name, self.schema, self.key_properties)
+        )
 
         if not self.key_properties:
             raise Exception("Missing key_properties (e.g. primary key(s)) in schema!")
@@ -79,36 +82,27 @@ class BigQuerySink(BatchSink):
         """Creates the table in bigquery"""
         schema = [
             column_type(name, schema, nullable=name not in self.key_properties)
-            for (name, schema) in self.schema['properties'].items()
+            for (name, schema) in self.schema["properties"].items()
         ]
 
         table = bigquery.Table(
-            f"{self.project_id}.{self.dataset_id}.{table_name}",
-            schema
+            f"{self.project_id}.{self.dataset_id}.{table_name}", schema
         )
 
         if expires:
             table.expires = datetime.now() + timedelta(days=1)
 
-        self.client.create_table(
-            table=table,
-            exists_ok=True
-        )
+        self.client.create_table(table=table, exists_ok=True)
 
     def update_from_temp_table(self, batch_id: str) -> str:
         """Returns a MERGE query"""
-        primary_keys = ' AND '.join([
-            f"src.`{k}` = dst.`{k}`"
-            for k in self.key_properties
-        ])
-        set_values = ', '.join([
-            f"`{key}` = src.`{key}`"
-            for key in self.schema["properties"].keys()
-        ])
-        cols = ', '.join([
-            f"`{key}`"
-            for key in self.schema["properties"].keys()
-        ])
+        primary_keys = " AND ".join(
+            [f"src.`{k}` = dst.`{k}`" for k in self.key_properties]
+        )
+        set_values = ", ".join(
+            [f"`{key}` = src.`{key}`" for key in self.schema["properties"].keys()]
+        )
+        cols = ", ".join([f"`{key}`" for key in self.schema["properties"].keys()])
 
         return f"""MERGE `{self.dataset_id}`.`{self.table_name}` dst
             USING `{self.dataset_id}`.`{self.temp_table_name(batch_id)}` src
@@ -124,9 +118,11 @@ class BigQuerySink(BatchSink):
 
     def table_exists(self) -> bool:
         """Check if table already exists"""
-        tables = self.query([f"SELECT table_name FROM {self.dataset_id}.INFORMATION_SCHEMA.TABLES"])
+        tables = self.query(
+            [f"SELECT table_name FROM {self.dataset_id}.INFORMATION_SCHEMA.TABLES"]
+        )
         for table in tables:
-            table_name = table['table_name']
+            table_name = table["table_name"]
             if table_name == self.table_name:
                 return True
         return False
@@ -136,14 +132,16 @@ class BigQuerySink(BatchSink):
         job_config = bigquery.QueryJobConfig()
         job_config.query_parameters = []
 
-        joined_queries = ';\n'.join(queries)
+        joined_queries = ";\n".join(queries)
 
         query_job = self.client.query(joined_queries, job_config=job_config)
 
         # Starts job and waits for result
         return query_job.result()
 
-    def load_table_from_file(self, filehandle: BinaryIO, batch_id: str) -> bigquery.LoadJob:
+    def load_table_from_file(
+        self, filehandle: BinaryIO, batch_id: str
+    ) -> bigquery.LoadJob:
         """Starts a load job for the given file."""
         self.create_table(self.temp_table_name(batch_id), expires=True)
 
@@ -153,9 +151,11 @@ class BigQuerySink(BatchSink):
         job_config = bigquery.LoadJobConfig()
         job_config.source_format = bigquery.SourceFormat.AVRO
         job_config.use_avro_logical_types = True
-        job_config.write_disposition = 'WRITE_TRUNCATE'
+        job_config.write_disposition = "WRITE_TRUNCATE"
 
-        job = self.client.load_table_from_file(filehandle, table_ref, job_config=job_config)
+        job = self.client.load_table_from_file(
+            filehandle, table_ref, job_config=job_config
+        )
 
         return job
 
@@ -182,7 +182,7 @@ class BigQuerySink(BatchSink):
         self.logger.info(f"[{self.stream_name}][{batch_id}] Converting to avro...")
 
         avro_records = (
-            fix_recursive_types_in_dict(record, self.schema['properties'])
+            fix_recursive_types_in_dict(record, self.schema["properties"])
             for record in context["records"]
         )
         _, temp_file = mkstemp()
@@ -203,10 +203,12 @@ class BigQuerySink(BatchSink):
         # Await job to finish
         load_job.result()
 
-        self.query([
-            self.update_from_temp_table(batch_id),
-            self.drop_temp_table(batch_id),
-        ])
+        self.query(
+            [
+                self.update_from_temp_table(batch_id),
+                self.drop_temp_table(batch_id),
+            ]
+        )
 
         self.logger.info(f"[{self.stream_name}][{batch_id}] Finished batch")
 
