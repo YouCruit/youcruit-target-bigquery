@@ -106,7 +106,11 @@ def parse_datetime(dt: Any) -> Optional[Union[datetime, date]]:
 
 def column_type_avro(name: str, schema_property: dict, nullable: bool) -> dict:
     global schema_collision_counter
-    property_type = schema_property["type"]
+    try:
+        property_type = schema_property["type"]
+    except KeyError as e:
+        raise KeyError(f"KeyError on fetching 'type' from {schema_property}")
+
     property_format = schema_property.get("format", None)
     result: dict[str, Union[str, dict, list]] = {"name": name}
     result_type: Union[str, dict[str, Union[Any, str]]] = ""
