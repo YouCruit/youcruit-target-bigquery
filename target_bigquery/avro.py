@@ -165,14 +165,16 @@ def column_type_avro(name: str, schema_property: dict, nullable: bool) -> dict:
     return result
 
 
-def avro_schema(stream_name: str, schema: dict, primary_keys: List[str]) -> dict:
+def avro_schema(
+    stream_name: str, schema_properties: dict, primary_keys: List[str]
+) -> dict:
     schema = {
         "type": "record",
         "namespace": "youcruit.avro",
         "name": stream_name,
         "fields": [
             column_type_avro(name, json_type, nullable=name not in primary_keys)
-            for name, json_type in schema["properties"].items()
+            for name, json_type in schema_properties.items()
         ],
     }
 

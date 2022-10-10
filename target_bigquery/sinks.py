@@ -43,8 +43,15 @@ class BigQuerySink(BatchSink):
         self.dataset_id = target.config["dataset"]
         self.table_prefix = target.config.get("table_prefix", None)
 
+        # pipelinewise-tap-postgres can send empty types, for example: sys_period = {}
+        self.schema_properties = {
+            name: jsontype
+            for name, jsontype in self.schema["properties"].items()
+            if "type" in jsontype
+        }
+
         self.parsed_schema = parse_schema(
-            avro_schema(self.stream_name, self.schema, self.key_properties)
+            avro_schema(self.stream_name, self.schema_properties, self.key_properties)
         )
 
         if not self.key_properties:
@@ -83,7 +90,7 @@ class BigQuerySink(BatchSink):
         """Creates the table in bigquery"""
         schema = [
             column_type(name, schema, nullable=name not in self.key_properties)
-            for (name, schema) in self.schema["properties"].items()
+            for (name, schema) in self.schema_properties.items()
         ]
 
         table = bigquery.Table(
@@ -101,9 +108,9 @@ class BigQuerySink(BatchSink):
             [f"src.`{k}` = dst.`{k}`" for k in self.key_properties]
         )
         set_values = ", ".join(
-            [f"`{key}` = src.`{key}`" for key in self.schema["properties"].keys()]
+            [f"`{key}` = src.`{key}`" for key in self.schema_properties.keys()]
         )
-        cols = ", ".join([f"`{key}`" for key in self.schema["properties"].keys()])
+        cols = ", ".join([f"`{key}`" for key in self.schema_properties.keys()])
 
         return f"""MERGE `{self.dataset_id}`.`{self.table_name}` dst
             USING `{self.dataset_id}`.`{self.temp_table_name(batch_id)}` src
@@ -135,11 +142,9 @@ class BigQuerySink(BatchSink):
 
         table_columns = [field.name for field in table.schema]
 
-        schema_columns = self.schema["properties"]
-
         columns_to_add = [
             column_type(col, coltype, nullable=True)
-            for col, coltype in schema_columns.items()
+            for col, coltype in self.schema_properties.items()
             if col not in table_columns
         ]
 
@@ -207,7 +212,7 @@ class BigQuerySink(BatchSink):
         self.logger.info(f"[{self.stream_name}][{batch_id}] Converting to avro...")
 
         avro_records = (
-            fix_recursive_types_in_dict(record, self.schema["properties"])
+            fix_recursive_types_in_dict(record, self.schema_properties)
             for record in context["records"]
         )
         _, temp_file = mkstemp()
