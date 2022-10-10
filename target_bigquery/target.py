@@ -75,6 +75,11 @@ class TargetBigQuery(Target):
             message_dict["manifest"],
         )
 
+    def _process_activate_version_message(self, message_dict: dict) -> None:
+        # Bug in meltano sdk with stream maps:
+        # https://github.com/meltano/sdk/issues/1055
+        pass
+
 
 if __name__ == "__main__":
     TargetBigQuery.cli()
