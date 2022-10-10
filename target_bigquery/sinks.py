@@ -133,23 +133,15 @@ class BigQuerySink(BatchSink):
         table_ref = self.client.dataset(self.dataset_id).table(self.table_name)
         table = self.client.get_table(table_ref)
 
-        self.logger.info(f"Errr {table}, {table.schema}")
-
         table_columns = [field.name for field in table.schema]
 
-        self.logger.info(f"Table cols: {table_columns}")
-
         schema_columns = self.schema["properties"]
-
-        self.logger.info(f"Schema cols: {schema_columns}")
 
         columns_to_add = [
             column_type(col, coltype, nullable=True)
             for col, coltype in schema_columns.items()
             if col not in table_columns
         ]
-
-        self.logger.info(f"Cols to add: {columns_to_add}")
 
         if columns_to_add:
             new_schema = table.schema.copy()
@@ -158,7 +150,6 @@ class BigQuerySink(BatchSink):
                 self.logger.info(f"Adding column {new_col.name}")
 
             table.schema = new_schema
-            self.logger.info("Adding cols")
             self.client.update_table(table, ["schema"])
 
     def query(self, queries: List[str]) -> bigquery.table.RowIterator:
