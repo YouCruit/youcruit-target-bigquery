@@ -17,6 +17,9 @@ from .sinks import (
 class TargetBigQuery(Target):
     """Sample target for BigQuery."""
 
+    # Override value in base class so we dont lose values that often
+    _MAX_RECORD_AGE_IN_MINUTES: int = 1
+
     name = "target-bigquery"
     config_jsonschema = th.PropertiesList(
         th.Property(
@@ -79,6 +82,15 @@ class TargetBigQuery(Target):
         # Bug in meltano sdk with stream maps:
         # https://github.com/meltano/sdk/issues/1055
         pass
+
+    def _process_schema_message(self, message_dict: dict) -> None:
+        """Process a SCHEMA messages.
+
+        Args:
+            message_dict: The newly received schema message.
+        """
+        self.logger.info(f"Received schema for {message_dict['stream']}: {message_dict['schema']}")
+        super()._process_schema_message(message_dict)
 
 
 if __name__ == "__main__":
