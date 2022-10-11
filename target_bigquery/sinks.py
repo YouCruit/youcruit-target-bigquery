@@ -152,7 +152,7 @@ class BigQuerySink(BatchSink):
             new_schema = table.schema.copy()
             for new_col in columns_to_add:
                 new_schema.append(new_col)
-                self.logger.info(f"Adding column {new_col.name}")
+                self.logger.info(f"[{self.stream_name}] Adding column {new_col.name}")
 
             table.schema = new_schema
             self.client.update_table(table, ["schema"])
