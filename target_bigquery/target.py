@@ -19,6 +19,7 @@ class TargetBigQuery(Target):
 
     # Override value in base class so we dont lose values that often
     _MAX_RECORD_AGE_IN_MINUTES: float = 1.0
+    batch_msg_processed: bool = False
 
     name = "target-bigquery"
     config_jsonschema = th.PropertiesList(
@@ -77,6 +78,8 @@ class TargetBigQuery(Target):
             encoding,
             message_dict["manifest"],
         )
+        # Respect if a batch tap sends state messages
+        self.batch_msg_processed = True
 
     def _process_activate_version_message(self, message_dict: dict) -> None:
         # Bug in meltano sdk with stream maps:
@@ -91,6 +94,23 @@ class TargetBigQuery(Target):
         """
         self.logger.info(f"Received schema for {message_dict['stream']}: {message_dict['schema']}")
         super()._process_schema_message(message_dict)
+
+    def _process_state_message(self, message_dict: dict) -> None:
+        """Process a state message. drain sinks if needed.
+
+        If state is unchanged, no actions will be taken.
+
+        Args:
+            message_dict: TODO
+        """
+        self._assert_line_requires(message_dict, requires={"value"})
+        state = message_dict["value"]
+        if self._latest_state == state:
+            return
+        self._latest_state = state
+        if self.batch_msg_processed or self._max_record_age_in_minutes > self._MAX_RECORD_AGE_IN_MINUTES:
+            # This will drain all stored records and emit state
+            self.drain_all()
 
 
 if __name__ == "__main__":
