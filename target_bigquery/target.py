@@ -18,7 +18,7 @@ class TargetBigQuery(Target):
     """Sample target for BigQuery."""
 
     # Override value in base class so we dont lose values that often
-    _MAX_RECORD_AGE_IN_MINUTES: float = 5.0
+    _MAX_RECORD_AGE_IN_MINUTES: float = 2.5
     batch_msg_processed: bool = False
 
     name = "target-bigquery"
