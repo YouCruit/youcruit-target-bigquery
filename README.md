@@ -25,7 +25,8 @@ target-bigquery --about --format=markdown
 | dataset             | True     | None    | Dataset to load data into |
 | location            | False    | None    | Dataset location |
 | table_prefix        | False    | None    | Optional prefix to add to table names |
-| batch_size          | False    |   10000 | Maximum size of batches when records are streamed in. BATCH messages are not affected by this property. |
+| batch_size          | False    |  100000 | Maximum size of batches when records are streamed in. BATCH messages are not affected by this property. |
+| max_batch_age       | False    |     5.0 | Maximum time in minutes between state messages when records are streamed in. BATCH messages are not affected by this property. |
 | add_record_metadata | False    |    True | Add Singer Data Capture (SDC) metadata to records |
 | stream_maps         | False    | None    | Config object for stream maps capability. For more information check out [Stream Maps](https://sdk.meltano.com/en/latest/stream_maps.html). |
 | stream_map_config   | False    | None    | User-defined config values to be used within map expressions. |

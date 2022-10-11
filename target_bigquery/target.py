@@ -17,8 +17,6 @@ from .sinks import (
 class TargetBigQuery(Target):
     """Sample target for BigQuery."""
 
-    # Override value in base class so we dont lose values that often
-    _MAX_RECORD_AGE_IN_MINUTES: float = 2.5
     batch_msg_processed: bool = False
 
     name = "target-bigquery"
@@ -54,7 +52,14 @@ class TargetBigQuery(Target):
             th.IntegerType,
             description="Maximum size of batches when records are streamed in. BATCH messages are not affected by this property.",
             required=False,
-            default=10000,
+            default=100000,
+        ),
+        th.Property(
+            "max_batch_age",
+            th.NumberType,
+            description="Maximum time in minutes between state messages when records are streamed in. BATCH messages are not affected by this property.",
+            required=False,
+            default=5.0,
         ),
         th.Property(
             "add_record_metadata",
@@ -66,6 +71,10 @@ class TargetBigQuery(Target):
     ).to_dict()
 
     default_sink_class = BigQuerySink
+
+    @property
+    def _MAX_RECORD_AGE_IN_MINUTES(self) -> float:
+        return float(self.config.get("max_batch_age", 5.0))
 
     def _process_batch_message(self, message_dict: dict) -> None:
         """Overridden because Meltano 0.11.1 has a bad implementation see
@@ -92,7 +101,9 @@ class TargetBigQuery(Target):
         Args:
             message_dict: The newly received schema message.
         """
-        self.logger.info(f"Received schema for {message_dict['stream']}: {message_dict['schema']}")
+        self.logger.info(
+            f"Received schema for {message_dict['stream']}: {message_dict['schema']}"
+        )
         super()._process_schema_message(message_dict)
 
     def _process_state_message(self, message_dict: dict) -> None:
@@ -108,7 +119,10 @@ class TargetBigQuery(Target):
         if self._latest_state == state:
             return
         self._latest_state = state
-        if self.batch_msg_processed or self._max_record_age_in_minutes > self._MAX_RECORD_AGE_IN_MINUTES:
+        if (
+            self.batch_msg_processed
+            or self._max_record_age_in_minutes > self._MAX_RECORD_AGE_IN_MINUTES
+        ):
             # This will drain all stored records and emit state
             self.drain_all()
 
