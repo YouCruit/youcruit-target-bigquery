@@ -18,7 +18,7 @@ class TargetBigQuery(Target):
     """Sample target for BigQuery."""
 
     # Override value in base class so we dont lose values that often
-    _MAX_RECORD_AGE_IN_MINUTES: int = 1
+    _MAX_RECORD_AGE_IN_MINUTES: float = 0.0
 
     name = "target-bigquery"
     config_jsonschema = th.PropertiesList(
