@@ -37,7 +37,7 @@ def column_type(name: str, schema_property: dict, nullable: bool) -> SchemaField
 
 
 def handle_record_type(name, schema_property, mode="NULLABLE") -> SchemaField:
-    fields = [column_type(col, t) for col, t in schema_property.get("properties", {}).items()]  # type: ignore
+    fields = [column_type(col, t, True) for col, t in schema_property.get("properties", {}).items()]  # type: ignore
     if fields:
         return SchemaField(name, "RECORD", mode, fields=fields)
     else:
