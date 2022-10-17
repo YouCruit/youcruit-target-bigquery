@@ -141,7 +141,8 @@ class BigQuerySink(BatchSink):
         table_ref = self.client.dataset(self.dataset_id).table(self.table_name)
         table = self.client.get_table(table_ref)
 
-        table_columns = [field.name for field in table.schema]
+        # Column names are case insensitive so lowercase them
+        table_columns = [field.name.lower() for field in table.schema]
 
         columns_to_add = [
             column_type(col, coltype, nullable=True)
