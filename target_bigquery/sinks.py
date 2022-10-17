@@ -44,9 +44,8 @@ class BigQuerySink(BatchSink):
         self.table_prefix = target.config.get("table_prefix", None)
 
         # pipelinewise-tap-postgres can send empty types, for example: sys_period = {}
-        # BigQuery Column names are case-insensitive so lowercase all names
         self.schema_properties = {
-            name.lower(): jsontype
+            name: jsontype
             for name, jsontype in self.schema["properties"].items()
             if "type" in jsontype
         }
@@ -147,7 +146,7 @@ class BigQuerySink(BatchSink):
         columns_to_add = [
             column_type(col, coltype, nullable=True)
             for col, coltype in self.schema_properties.items()
-            if col not in table_columns
+            if col.lower() not in table_columns
         ]
 
         if columns_to_add:
