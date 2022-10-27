@@ -210,10 +210,22 @@ class BigQuerySink(BatchSink):
         """Write out any prepped records and return once fully written."""
         batch_id = context["batch_id"]
 
+        def transform_record(record):
+            fixed_record = fix_recursive_types_in_dict(record, self.schema_properties)
+
+            if self.include_sdc_metadata_properties:
+                self._add_sdc_metadata_to_record(
+                    fixed_record, {}, context
+                )
+            else:
+                self._remove_sdc_metadata_from_record(fixed_record)
+
+            return fixed_record
+
         self.logger.info(f"[{self.stream_name}][{batch_id}] Converting to avro...")
 
         avro_records = (
-            fix_recursive_types_in_dict(record, self.schema_properties)
+            transform_record(record)
             for record in context["records"]
         )
         _, temp_file = mkstemp()
