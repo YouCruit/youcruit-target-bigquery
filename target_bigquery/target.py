@@ -80,15 +80,17 @@ class TargetBigQuery(Target):
         """Overridden because Meltano 0.11.1 has a bad implementation see
         https://github.com/meltano/sdk/issues/1031
         """
-        sink = self.get_sink(message_dict["stream"])
+        stream_name = message_dict["stream"]
+        for stream_map in self.mapper.stream_maps[stream_name]:
+            sink = self.get_sink(stream_map.stream_alias)
 
-        encoding = BaseBatchFileEncoding.from_dict(message_dict["encoding"])
-        sink.process_batch_files(
-            encoding,
-            message_dict["manifest"],
-        )
-        # Respect if a batch tap sends state messages
-        self.batch_msg_processed = True
+            encoding = BaseBatchFileEncoding.from_dict(message_dict["encoding"])
+            sink.process_batch_files(
+                encoding,
+                message_dict["manifest"],
+            )
+            # Respect if a batch tap sends state messages
+            self.batch_msg_processed = True
 
     def _process_activate_version_message(self, message_dict: dict) -> None:
         # Bug in meltano sdk with stream maps:
