@@ -43,6 +43,9 @@ class BigQuerySink(BatchSink):
         self.dataset_id = target.config["dataset"]
         self.table_prefix = target.config.get("table_prefix", None)
 
+        stream_config = target.config.get("stream_configs", {}).get(stream_name, {})
+        self.time_partition_column = stream_config.get("time_partition_column", None)
+
         # pipelinewise-tap-postgres can send empty types, for example: sys_period = {}
         self.schema_properties = {
             name: jsontype
@@ -99,6 +102,12 @@ class BigQuerySink(BatchSink):
 
         if expires:
             table.expires = datetime.now() + timedelta(days=1)
+
+        if self.time_partition_column:
+            table.time_partitioning = bigquery.TimePartitioning(
+                type_=bigquery.TimePartitioningType.DAY,
+                field=self.time_partition_column
+            )
 
         self.client.create_table(table=table, exists_ok=True)
 
