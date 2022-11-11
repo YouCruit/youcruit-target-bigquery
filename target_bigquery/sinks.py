@@ -121,13 +121,17 @@ class BigQuerySink(BatchSink):
         )
         cols = ", ".join([f"`{key}`" for key in self.schema_properties.keys()])
 
-        return f"""MERGE `{self.dataset_id}`.`{self.table_name}` dst
+        query = f"""MERGE `{self.dataset_id}`.`{self.table_name}` dst
             USING `{self.dataset_id}`.`{self.temp_table_name(batch_id)}` src
             ON {primary_keys}
             WHEN MATCHED THEN
                 UPDATE SET {set_values}
             WHEN NOT MATCHED THEN
                 INSERT ({cols}) VALUES ({cols})"""
+
+        self.logger.info(f"[{self.stream_name}] {query}")
+
+        return query
 
     def drop_temp_table(self, batch_id: str) -> str:
         """Returns a DROP TABLE statement"""
