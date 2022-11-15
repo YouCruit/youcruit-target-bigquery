@@ -97,7 +97,12 @@ def parse_datetime(dt: Any) -> Optional[Union[datetime, date]]:
             return dt
 
         if "Z" in dt:
-            return datetime.strptime(dt, "%Y-%m-%dT%H:%M:%S.%fZ")
+            if "." in dt:
+                # Seems like there are fractional seconds
+                return datetime.strptime(dt, "%Y-%m-%dT%H:%M:%S.%fZ")
+            else:
+                # Seems to be no fractional seconds
+                return datetime.strptime(dt, "%Y-%m-%dT%H:%M:%SZ")
 
         return datetime.fromisoformat("+".join(dt.split("+")[:1]))
     except TypeError:
