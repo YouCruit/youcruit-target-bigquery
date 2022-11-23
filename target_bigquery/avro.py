@@ -176,7 +176,8 @@ def avro_schema(
     schema = {
         "type": "record",
         "namespace": "youcruit.avro",
-        "name": stream_name,
+        # For some reason hyphens are not liked here
+        "name": stream_name.replace("-", "_"),
         "fields": [
             column_type_avro(name, json_type, nullable=name not in primary_keys)
             for name, json_type in schema_properties.items()
