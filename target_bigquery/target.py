@@ -116,15 +116,24 @@ class TargetBigQuery(Target):
         Args:
             message_dict: TODO
         """
+        self.logger.info(
+            f"Received state: {message_dict['value']}"
+        )
         self._assert_line_requires(message_dict, requires={"value"})
         state = message_dict["value"]
         if self._latest_state == state:
+            self.logger.info(
+                f"Received state matches latest internal state so doing nothing"
+            )
             return
         self._latest_state = state
         if (
             self.batch_msg_processed
             or self._max_record_age_in_minutes > self._MAX_RECORD_AGE_IN_MINUTES
         ):
+            self.logger.info(
+                f"Received state and this should emit it onwards! {self.batch_msg_processed}"
+            )
             # This will drain all stored records and emit state
             self.drain_all()
 
