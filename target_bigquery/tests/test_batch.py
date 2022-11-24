@@ -1,10 +1,9 @@
 """Tests the Batch Sink"""
 from collections import namedtuple
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from ..target import TargetBigQuery
 from . import test_utils
-
 
 MINIMAL_CONFIG = {
     "project_id": "projid",
@@ -34,7 +33,7 @@ def test_loads_records_with_minimal_config(mock_client):
     # Data is loaded into table
     mock_client.return_value.load_table_from_file.assert_called_once()
     # Job is awaited
-    mock_client.return_value.load_table_from_file.return_value.result.assert_called_once()
+    mock_client.return_value.load_table_from_file.return_value.result.assert_called_once()  # noqa: E501
 
     # Real table is created without expiration
     second_table_kwargs = mock_client.return_value.create_table.call_args_list[1].kwargs
@@ -72,7 +71,7 @@ def test_loads_batch_one(mock_client):
     # Data is loaded into table
     mock_client.return_value.load_table_from_file.assert_called_once()
     # Job is awaited
-    mock_client.return_value.load_table_from_file.return_value.result.assert_called_once()
+    mock_client.return_value.load_table_from_file.return_value.result.assert_called_once()  # noqa: E501
 
     # Real table is created without expiration
     second_table_kwargs = mock_client.return_value.create_table.call_args_list[1].kwargs

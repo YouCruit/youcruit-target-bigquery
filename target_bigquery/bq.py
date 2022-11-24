@@ -1,9 +1,10 @@
 """Some BigQuery utils"""
-from typing import Iterable
-from google.cloud.bigquery import SchemaField, Client
+from typing import Iterable, Optional
+
+from google.cloud.bigquery import Client, SchemaField
 
 
-def get_client(project_id: str, location: str = None) -> Client:
+def get_client(project_id: str, location: Optional[str] = None) -> Client:
     """Returns a Google Client. This is a method so it can be mocked in tests."""
     return Client(project=project_id, location=location)
 
@@ -37,7 +38,10 @@ def column_type(name: str, schema_property: dict, nullable: bool) -> SchemaField
 
 
 def handle_record_type(name, schema_property, mode="NULLABLE") -> SchemaField:
-    fields = [column_type(col, t, True) for col, t in schema_property.get("properties", {}).items()]  # type: ignore
+    fields = [
+        column_type(col, t, True)
+        for col, t in schema_property.get("properties", {}).items()
+    ]  # type: ignore
     if fields:
         return SchemaField(name, "RECORD", mode, fields=fields)
     else:

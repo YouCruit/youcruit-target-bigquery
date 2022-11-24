@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "target-bigquery"
-version = "0.0.1"
+version = "0.1.0"
 description = "`target-bigquery` is a Singer target for BigQuery, built with the Meltano SDK for Singer Targets."
 authors = ["Jonas Kalderstam"]
 keywords = [
@@ -10,18 +10,18 @@ keywords = [
 license = "Apache 2.0"
 
 [tool.poetry.dependencies]
-python = "<3.11,>=3.7.1"
+python = "<3.11,>=3.9"
 singer-sdk = "^0.11.1"
 google-cloud-bigquery = "~3.3.3"
 fastavro = "^1.6.1"
 
 [tool.poetry.dev-dependencies]
-pytest = "^6.2.5"
-tox = "^3.24.4"
+pytest = "^7.0.1"
+tox = "^3.24.5"
 flake8 = "^3.9.2"
 black = "^22.1"
 pydocstyle = "^6.1.1"
-mypy = "^0.910"
+mypy = "^0.991"
 types-requests = "^2.26.1"
 isort = "^5.10.1"
 

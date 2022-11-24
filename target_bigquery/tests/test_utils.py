@@ -1,5 +1,5 @@
-from io import StringIO
 import os
+from io import StringIO
 
 
 def get_test_tap_lines(filename: str) -> StringIO:
