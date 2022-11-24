@@ -1,10 +1,10 @@
 """Some BigQuery utils"""
-from typing import Iterable
+from typing import Iterable, Optional
 
 from google.cloud.bigquery import Client, SchemaField
 
 
-def get_client(project_id: str, location: str = None) -> Client:
+def get_client(project_id: str, location: Optional[str] = None) -> Client:
     """Returns a Google Client. This is a method so it can be mocked in tests."""
     return Client(project=project_id, location=location)
 
