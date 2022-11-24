@@ -1,6 +1,7 @@
 """Utility functions for integration tests"""
 import os
 from typing import Optional
+
 from google.cloud import bigquery
 
 

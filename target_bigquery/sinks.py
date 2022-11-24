@@ -1,29 +1,30 @@
 """BigQuery target sink class, which handles writing streams."""
 
 from __future__ import annotations
+
+import json
+import uuid
 from datetime import datetime, timedelta
 from gzip import GzipFile
 from gzip import open as gzip_open
-from io import BufferedRandom
-import json
 from pathlib import Path
 from tempfile import mkstemp
-from typing import IO, BinaryIO, Dict, List, Optional, Sequence
-import uuid
+from typing import IO, Any, BinaryIO, Dict, List, Optional, Sequence
 
-from singer_sdk.sinks import BatchSink
-from singer_sdk.plugin_base import PluginBase
+from fastavro import parse_schema, writer
+from google.cloud import bigquery
 from singer_sdk.helpers._batch import (
     BaseBatchFileEncoding,
-    BatchConfig,
     BatchFileFormat,
     StorageTarget,
 )
-from fastavro import writer, parse_schema
-from google.cloud import bigquery
+from singer_sdk.plugin_base import PluginBase
+from singer_sdk.sinks import BatchSink
 
-from .bq import column_type, get_client
 from .avro import avro_schema, fix_recursive_types_in_dict
+from .bq import column_type, get_client
+
+PARTITIONS = "partitions"
 
 
 class BigQuerySink(BatchSink):
@@ -86,6 +87,26 @@ class BigQuerySink(BatchSink):
         """
         return f"{self.table_name}_{batch_id}"
 
+    def get_partition_column(self) -> Optional[str]:
+        """Returns configured partition column for the target table"""
+        result: Optional[str] = None
+
+        table_configs: Optional[list] = self.config.get("table_configs", None)
+        if table_configs:
+            for table_config in table_configs:
+                if table_config.get("table_name", None) == self.table_name:
+                    result = table_config.get("partition_column", None)
+                    break
+                prefix = table_config.get("table_prefix", None)
+                if prefix and self.table_name.startswith(prefix):
+                    result = table_config.get("partition_column", None)
+                    break
+
+        if not result:
+            result = self.config.get("default_partition_column", None)
+
+        return result
+
     def create_table(self, table_name: str, expires: bool):
         """Creates the table in bigquery"""
         schema = [
@@ -94,15 +115,28 @@ class BigQuerySink(BatchSink):
         ]
 
         table = bigquery.Table(
-            f"{self.project_id}.{self.dataset_id}.{table_name}", schema
+            f"{self.project_id}.{self.dataset_id}.{table_name}",
+            schema,
         )
+
+        # Clustering on primary keys is probably always a good idea
+        table.clustering_fields = self.key_properties[:4]
+
+        # Partition if configured but never for temporary load tables
+        partition_column = self.get_partition_column()
+        if not expires and partition_column:
+            table.time_partitioning = bigquery.TimePartitioning(
+                type_=bigquery.TimePartitioningType.DAY,
+                field=partition_column,
+                expiration_ms=None,
+            )
 
         if expires:
             table.expires = datetime.now() + timedelta(days=1)
 
         self.client.create_table(table=table, exists_ok=True)
 
-    def update_from_temp_table(self, batch_id: str) -> str:
+    def update_from_temp_table(self, batch_id: str, batch_meta: dict[str, Any]) -> str:
         """Returns a MERGE query"""
         primary_keys = " AND ".join(
             [f"src.`{k}` = dst.`{k}`" for k in self.key_properties]
@@ -112,13 +146,27 @@ class BigQuerySink(BatchSink):
         )
         cols = ", ".join([f"`{key}`" for key in self.schema_properties.keys()])
 
-        return f"""MERGE `{self.dataset_id}`.`{self.table_name}` dst
+        partition_column = self.get_partition_column()
+
+        and_maybe_partitions = ""
+        if partition_column:
+            partitions: set = batch_meta.get(PARTITIONS, set())
+            if len(partitions) > 0:
+                ps = ", ".join((f"timestamp('{p}')" for p in partitions))
+                and_maybe_partitions = (
+                    f""" AND dst.`{partition_column}` IN UNNEST([{ps}])"""
+                )
+
+        stmt = f"""MERGE `{self.dataset_id}`.`{self.table_name}` dst
             USING `{self.dataset_id}`.`{self.temp_table_name(batch_id)}` src
-            ON {primary_keys}
+            ON {primary_keys} {and_maybe_partitions}
             WHEN MATCHED THEN
                 UPDATE SET {set_values}
             WHEN NOT MATCHED THEN
                 INSERT ({cols}) VALUES ({cols})"""
+
+        self.logger.debug(f"[{self.stream_name}][{batch_id}] {stmt}")
+        return stmt
 
     def drop_temp_table(self, batch_id: str) -> str:
         """Returns a DROP TABLE statement"""
@@ -136,7 +184,8 @@ class BigQuerySink(BatchSink):
         return False
 
     def ensure_columns_exist(self):
-        """Ensures all columns present in the Singer Schema are also present in Big Query"""
+        """Ensures all columns present in the Singer Schema
+        are also present in Big Query"""
         table_ref = self.client.dataset(self.dataset_id).table(self.table_name)
         table = self.client.get_table(table_ref)
 
@@ -210,22 +259,27 @@ class BigQuerySink(BatchSink):
         """Write out any prepped records and return once fully written."""
         batch_id = context["batch_id"]
 
+        partition_column = self.get_partition_column()
+
+        batch_partitions: set[str] = set()
+        batch_meta: dict[str, Any] = {PARTITIONS: batch_partitions}
+
         def transform_record(record):
             if self.include_sdc_metadata_properties:
-                self._add_sdc_metadata_to_record(
-                    record, {}, context
-                )
+                self._add_sdc_metadata_to_record(record, {}, context)
             else:
                 self._remove_sdc_metadata_from_record(record)
 
-            return fix_recursive_types_in_dict(record, self.schema_properties)
+            fixed = fix_recursive_types_in_dict(record, self.schema_properties)
+
+            if partition_column:
+                batch_partitions.add(fixed[partition_column].date())
+
+            return fixed
 
         self.logger.info(f"[{self.stream_name}][{batch_id}] Converting to avro...")
 
-        avro_records = (
-            transform_record(record)
-            for record in context["records"]
-        )
+        avro_records = (transform_record(record) for record in context["records"])
         _, temp_file = mkstemp()
 
         with open(temp_file, "wb") as tempfile:
@@ -249,7 +303,7 @@ class BigQuerySink(BatchSink):
 
         self.query(
             [
-                self.update_from_temp_table(batch_id),
+                self.update_from_temp_table(batch_id, batch_meta),
                 self.drop_temp_table(batch_id),
             ]
         )
@@ -285,7 +339,8 @@ class BigQuerySink(BatchSink):
                             "batch_start_time": datetime.now(),
                         }
                         self.start_batch(context)
-                        # Making this a generator instead - no need to store lines in memory for avro conversion
+                        # Making this a generator instead
+                        # no need to store lines in memory for avro conversion
                         context["records"] = (json.loads(line) for line in file)
                         self.process_batch(context)
             else:

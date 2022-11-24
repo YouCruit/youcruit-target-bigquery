@@ -1,17 +1,12 @@
 """BigQuery target class."""
 
 from __future__ import annotations
-from pathlib import PurePath
-from pydoc import describe
-from typing import List, Optional, Union
 
-from singer_sdk.target_base import Target
 from singer_sdk import typing as th
 from singer_sdk.helpers._batch import BaseBatchFileEncoding
+from singer_sdk.target_base import Target
 
-from .sinks import (
-    BigQuerySink,
-)
+from .sinks import BigQuerySink
 
 
 class TargetBigQuery(Target):
@@ -50,14 +45,14 @@ class TargetBigQuery(Target):
         th.Property(
             "batch_size",
             th.IntegerType,
-            description="Maximum size of batches when records are streamed in. BATCH messages are not affected by this property.",
+            description="Maximum size of batches when records are streamed in. BATCH messages are not affected by this property.",  # noqa: E501
             required=False,
             default=100000,
         ),
         th.Property(
             "max_batch_age",
             th.NumberType,
-            description="Maximum time in minutes between state messages when records are streamed in. BATCH messages are not affected by this property.",
+            description="Maximum time in minutes between state messages when records are streamed in. BATCH messages are not affected by this property.",  # noqa: E501
             required=False,
             default=5.0,
         ),
@@ -68,12 +63,50 @@ class TargetBigQuery(Target):
             required=False,
             default=True,
         ),
+        th.Property(
+            "default_partition_column",
+            th.StringType,
+            description="Default partition column for all streams",
+            required=False,
+            default=None,
+        ),
+        th.Property(
+            "table_configs",
+            th.ArrayType(
+                th.ObjectType(
+                    th.Property(
+                        "table_name",
+                        th.StringType,
+                        description="Name of the table (including prefix if that is configured)",  # noqa: E501
+                        required=False,
+                        default=None,
+                    ),
+                    th.Property(
+                        "table_prefix",
+                        th.StringType,
+                        description="Prefix of the table (including prefix if that is configured)",  # noqa: E501
+                        required=False,
+                        default=None,
+                    ),
+                    th.Property(
+                        "partition_column",
+                        th.StringType,
+                        description="Column to partition table by. Must be a timestamp",
+                        required=False,
+                        default=None,
+                    ),
+                )
+            ),
+            description="Stream specific configs. Like partition keys.",
+            required=False,
+            default=None,
+        ),
     ).to_dict()
 
     default_sink_class = BigQuerySink
 
     @property
-    def _MAX_RECORD_AGE_IN_MINUTES(self) -> float:
+    def _MAX_RECORD_AGE_IN_MINUTES(self) -> float:  # type: ignore
         return float(self.config.get("max_batch_age", 5.0))
 
     def _process_batch_message(self, message_dict: dict) -> None:

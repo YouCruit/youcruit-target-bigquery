@@ -1,12 +1,10 @@
 """AVRO utility functions."""
 
 
+import json
 from datetime import date, datetime
 from decimal import Decimal, getcontext
-import json
-import re
 from typing import Any, Iterable, List, Optional, Union
-
 
 PRECISION = 38
 SCALE = 9
@@ -109,11 +107,13 @@ def parse_datetime(dt: Any) -> Optional[Union[datetime, date]]:
         return None
 
 
-def column_type_avro(name: str, schema_property: dict, nullable: bool) -> dict:
+def column_type_avro(  # noqa: C901
+    name: str, schema_property: dict, nullable: bool
+) -> dict:
     global schema_collision_counter
     try:
         property_type = schema_property["type"]
-    except KeyError as e:
+    except KeyError:
         raise KeyError(f"Column [{name}] did not have a defined type in the schema")
 
     property_format = schema_property.get("format", None)
@@ -122,7 +122,11 @@ def column_type_avro(name: str, schema_property: dict, nullable: bool) -> dict:
 
     if "array" in property_type:
         try:
-            items_type = column_type_avro(name, schema_property["items"], nullable=True)  # type: ignore
+            items_type = column_type_avro(
+                name,
+                schema_property["items"],
+                nullable=True,
+            )  # type: ignore
             result_type = {"type": "array", "items": items_type["type"]}
         except KeyError:
             result_type = "string"
@@ -133,8 +137,9 @@ def column_type_avro(name: str, schema_property: dict, nullable: bool) -> dict:
         ]
 
         if items_types:
-            # Avro tries to be smart and reuse schemas or something, this causes collisions when
-            # different schemas end up having the same name. So ensure that doesn't happen
+            # Avro tries to be smart and reuse schemas or something,
+            # this causes collisions when different schemas end up
+            # having the same name. So ensure that doesn't happen.
             schema_collision_counter += 1
             result_type = {
                 "type": "record",

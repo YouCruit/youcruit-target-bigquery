@@ -19,22 +19,65 @@ target-bigquery --about --format=markdown
 ```
 -->
 
-| Setting             | Required | Default | Description |
-|:--------------------|:--------:|:-------:|:------------|
-| project_id          | True     | None    | Google project id |
-| dataset             | True     | None    | Dataset to load data into |
-| location            | False    | None    | Dataset location |
-| table_prefix        | False    | None    | Optional prefix to add to table names |
-| batch_size          | False    |  100000 | Maximum size of batches when records are streamed in. BATCH messages are not affected by this property. |
-| max_batch_age       | False    |     5.0 | Maximum time in minutes between state messages when records are streamed in. BATCH messages are not affected by this property. |
-| add_record_metadata | False    |    True | Add Singer Data Capture (SDC) metadata to records |
-| stream_maps         | False    | None    | Config object for stream maps capability. For more information check out [Stream Maps](https://sdk.meltano.com/en/latest/stream_maps.html). |
-| stream_map_config   | False    | None    | User-defined config values to be used within map expressions. |
-| flattening_enabled  | False    | None    | 'True' to enable schema flattening and automatically expand nested properties. |
-| flattening_max_depth| False    | None    | The max depth to flatten schemas. |
+| Setting                 | Required | Default | Description |
+|:------------------------|:--------:|:-------:|:------------|
+| project_id              | True     | None    | Google project id |
+| dataset                 | True     | None    | Dataset to load data into |
+| location                | False    | None    | Dataset location |
+| table_prefix            | False    | None    | Optional prefix to add to table names |
+| batch_size              | False    |  100000 | Maximum size of batches when records are streamed in. BATCH messages are not affected by this property. |
+| max_batch_age           | False    |     5.0 | Maximum time in minutes between state messages when records are streamed in. BATCH messages are not affected by this property. |
+| add_record_metadata     | False    |       1 | Add Singer Data Capture (SDC) metadata to records |
+| default_partition_column| False    | None    | Default partition column for all streams |
+| table_configs           | False    | None    | Stream specific configs. Like partition keys. |
+| stream_maps             | False    | None    | Config object for stream maps capability. For more information check out [Stream Maps](https://sdk.meltano.com/en/latest/stream_maps.html). |
+| stream_map_config       | False    | None    | User-defined config values to be used within map expressions. |
+| flattening_enabled      | False    | None    | 'True' to enable schema flattening and automatically expand nested properties. |
+| flattening_max_depth    | False    | None    | The max depth to flatten schemas. |
+
 
 A full list of supported settings and capabilities is available by running: `target-bigquery --about`
 
+### Utilizing partitioned tables in BigQuery
+
+Enabling partitioned data on your destination table can, depending on your data, reduce the amount of
+data (and thus cost) needed to be queried on each batch. The partition column must be a timestamp
+and it must remain constant over time. A creation-timestamp is usually a good choice.
+
+To take advantage of this feature use either
+`default_partition_column` or `table_configs` setting.
+
+A full example meltano config is as follows:
+
+```yaml
+loaders:
+- name: target-bigquery
+  config:
+    project_id: <PROJ-ID>
+    location: <LOCATION>
+    dataset: <DATASET>
+    table_prefix: ${MELTANO_EXTRACT__LOAD_SCHEMA}_
+    batch_size: 10000
+    ## No partioning by default
+    # default_partition_column:
+    table_configs:
+    ## All hubspot streams have a createdAt property we can use.
+    ## We are using the fact that all table names will be prefixed with the tap name
+    ## thanks to the table_prefix setting above
+    - table_prefix: tap_hubspot_
+      partition_column: createdAt
+    ## Here we specify a specific stream and what partition column is correct
+    - table_name: tap_postgres_public-e_users
+      partition_column: date_created
+```
+
+If neither of `table_prefix` and `table_name` matches then `default_partition_column` is used as fallback.
+
+If the resulting `partition_column` is false, either by being `None` (the default) or an empty string, then
+no partioning will be performed.
+
+Also note that the target will not perform any `ALTER TABLE` operations. Only tables being created for the first
+time will be partitioned.
 
 ### Configure using environment variables
 
