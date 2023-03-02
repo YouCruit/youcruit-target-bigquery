@@ -55,9 +55,6 @@ class BigQuerySink(BatchSink):
             avro_schema(self.stream_name, self.schema_properties, self.key_properties)
         )
 
-        if not self.key_properties:
-            raise Exception("Missing key_properties (e.g. primary key(s)) in schema!")
-
         self.client: bigquery.Client = get_client(self.project_id, self.location)
         self.once_jobs_done = False
 
@@ -107,6 +104,25 @@ class BigQuerySink(BatchSink):
 
         return result
 
+    def get_truncate_before_load(self) -> bool:
+        result = None
+
+        table_configs: Optional[list] = self.config.get("table_configs", None)
+        if table_configs:
+            for table_config in table_configs:
+                if table_config.get("table_name", None) == self.table_name:
+                    result = table_config.get("truncate_before_load", None)
+                    break
+                prefix = table_config.get("table_prefix", None)
+                if prefix and self.table_name.startswith(prefix):
+                    result = table_config.get("truncate_before_load", None)
+                    break
+
+        if result is None:
+            return self.config.get("truncate_before_load", False)
+        else:
+            return result
+
     def create_table(self, table_name: str, expires: bool):
         """Creates the table in bigquery"""
         schema = [
@@ -120,7 +136,7 @@ class BigQuerySink(BatchSink):
         )
 
         # Clustering on primary keys is probably always a good idea
-        table.clustering_fields = self.key_properties[:4]
+        table.clustering_fields = self.key_properties[:4] or None
 
         # Partition if configured but never for temporary load tables
         partition_column = self.get_partition_column()
@@ -137,7 +153,31 @@ class BigQuerySink(BatchSink):
         self.client.create_table(table=table, exists_ok=True)
 
     def update_from_temp_table(self, batch_id: str, batch_meta: dict[str, Any]) -> str:
+        """Returns suitable queries depending on if we have a primary key or not"""
+
+        if self.key_properties and not self.get_truncate_before_load():
+            return self.update_from_temp_table_merge(batch_id, batch_meta)
+        else:
+            return self.update_from_temp_table_append(batch_id)
+
+    def update_from_temp_table_append(self, batch_id: str) -> str:
+        """Returs an INSERT query"""
+
+        cols = ", ".join([f"`{key}`" for key in self.schema_properties.keys()])
+
+        stmt = f"""
+            INSERT INTO `{self.dataset_id}`.`{self.table_name}` ({cols})
+            SELECT {cols} FROM `{self.dataset_id}`.`{self.temp_table_name(batch_id)}`
+        """
+
+        self.logger.debug(f"[{self.stream_name}][{batch_id}] {stmt}")
+        return stmt
+
+    def update_from_temp_table_merge(
+        self, batch_id: str, batch_meta: dict[str, Any]
+    ) -> str:
         """Returns a MERGE query"""
+
         primary_keys = " AND ".join(
             [f"src.`{k}` = dst.`{k}`" for k in self.key_properties]
         )
@@ -171,6 +211,10 @@ class BigQuerySink(BatchSink):
     def drop_temp_table(self, batch_id: str) -> str:
         """Returns a DROP TABLE statement"""
         return f"DROP TABLE `{self.dataset_id}`.`{self.temp_table_name(batch_id)}`"
+
+    def truncate_table(self) -> str:
+        """Returns a TRUNCATE TABLE statement"""
+        return f"TRUNCATE TABLE `{self.dataset_id}`.`{self.table_name}`"
 
     def table_exists(self) -> bool:
         """Check if table already exists"""
@@ -301,12 +345,15 @@ class BigQuerySink(BatchSink):
         # Await job to finish
         load_job.result()
 
-        self.query(
-            [
-                self.update_from_temp_table(batch_id, batch_meta),
-                self.drop_temp_table(batch_id),
-            ]
-        )
+        queries = []
+
+        if self.get_truncate_before_load():
+            queries.append(self.truncate_table())
+
+        queries.append(self.update_from_temp_table(batch_id, batch_meta))
+        queries.append(self.drop_temp_table(batch_id))
+
+        self.query(queries)
 
         self.logger.info(f"[{self.stream_name}][{batch_id}] Finished batch")
 
