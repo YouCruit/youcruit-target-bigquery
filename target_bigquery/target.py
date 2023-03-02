@@ -71,6 +71,13 @@ class TargetBigQuery(Target):
             default=None,
         ),
         th.Property(
+            "truncate_before_load",
+            th.BooleanType,
+            description="If target table should be truncated before new data is loaded",
+            required=False,
+            default=False,
+        ),
+        th.Property(
             "table_configs",
             th.ArrayType(
                 th.ObjectType(

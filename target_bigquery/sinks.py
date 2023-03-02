@@ -55,9 +55,6 @@ class BigQuerySink(BatchSink):
             avro_schema(self.stream_name, self.schema_properties, self.key_properties)
         )
 
-        if not self.key_properties:
-            raise Exception("Missing key_properties (e.g. primary key(s)) in schema!")
-
         self.client: bigquery.Client = get_client(self.project_id, self.location)
         self.once_jobs_done = False
 
@@ -120,7 +117,7 @@ class BigQuerySink(BatchSink):
         )
 
         # Clustering on primary keys is probably always a good idea
-        table.clustering_fields = self.key_properties[:4]
+        table.clustering_fields = self.key_properties[:4] or None
 
         # Partition if configured but never for temporary load tables
         partition_column = self.get_partition_column()
@@ -137,7 +134,31 @@ class BigQuerySink(BatchSink):
         self.client.create_table(table=table, exists_ok=True)
 
     def update_from_temp_table(self, batch_id: str, batch_meta: dict[str, Any]) -> str:
+        """Returns suitable queries depending on if we have a primary key or not"""
+
+        if self.key_properties and not self.config.get("truncate_before_load", False):
+            return self.update_from_temp_table_merge(batch_id, batch_meta)
+        else:
+            return self.update_from_temp_table_append(batch_id)
+
+    def update_from_temp_table_append(self, batch_id: str) -> str:
+        """Returs an INSERT query"""
+
+        cols = ", ".join([f"`{key}`" for key in self.schema_properties.keys()])
+
+        stmt = f"""
+            INSERT INTO `{self.dataset_id}`.`{self.table_name}` ({cols})
+            SELECT {cols} FROM `{self.dataset_id}`.`{self.temp_table_name(batch_id)}`
+        """
+
+        self.logger.debug(f"[{self.stream_name}][{batch_id}] {stmt}")
+        return stmt
+
+    def update_from_temp_table_merge(
+        self, batch_id: str, batch_meta: dict[str, Any]
+    ) -> str:
         """Returns a MERGE query"""
+
         primary_keys = " AND ".join(
             [f"src.`{k}` = dst.`{k}`" for k in self.key_properties]
         )
@@ -171,6 +192,10 @@ class BigQuerySink(BatchSink):
     def drop_temp_table(self, batch_id: str) -> str:
         """Returns a DROP TABLE statement"""
         return f"DROP TABLE `{self.dataset_id}`.`{self.temp_table_name(batch_id)}`"
+
+    def truncate_table(self) -> str:
+        """Returns a TRUNCATE TABLE statement"""
+        return f"TRUNCATE TABLE `{self.dataset_id}`.`{self.table_name}`"
 
     def table_exists(self) -> bool:
         """Check if table already exists"""
@@ -301,12 +326,15 @@ class BigQuerySink(BatchSink):
         # Await job to finish
         load_job.result()
 
-        self.query(
-            [
-                self.update_from_temp_table(batch_id, batch_meta),
-                self.drop_temp_table(batch_id),
-            ]
-        )
+        queries = []
+
+        if self.config.get("truncate_before_load", False):
+            queries.append(self.truncate_table())
+
+        queries.append(self.update_from_temp_table(batch_id, batch_meta))
+        queries.append(self.drop_temp_table(batch_id))
+
+        self.query(queries)
 
         self.logger.info(f"[{self.stream_name}][{batch_id}] Finished batch")
 
