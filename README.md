@@ -30,6 +30,7 @@ target-bigquery --about --format=markdown
 | add_record_metadata     | False    |       1 | Add Singer Data Capture (SDC) metadata to records |
 | default_partition_column| False    | None    | Default partition column for all streams |
 | truncate_before_load    | False    |       0 | If tables should be truncated before new data is loaded |
+| append_only             | False    |       0 | Only append data; don't overwrite existing data |
 | table_configs           | False    | None    | Stream specific configs. Like partition keys. |
 | stream_maps             | False    | None    | Config object for stream maps capability. For more information check out [Stream Maps](https://sdk.meltano.com/en/latest/stream_maps.html). |
 | stream_map_config       | False    | None    | User-defined config values to be used within map expressions. |
