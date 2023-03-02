@@ -123,6 +123,25 @@ class BigQuerySink(BatchSink):
         else:
             return result
 
+    def get_append_only(self) -> bool:
+        result = None
+
+        table_configs: Optional[list] = self.config.get("table_configs", None)
+        if table_configs:
+            for table_config in table_configs:
+                if table_config.get("table_name", None) == self.table_name:
+                    result = table_config.get("append_only", None)
+                    break
+                prefix = table_config.get("table_prefix", None)
+                if prefix and self.table_name.startswith(prefix):
+                    result = table_config.get("append_only", None)
+                    break
+
+        if result is None:
+            return self.config.get("append_only", False)
+        else:
+            return result
+
     def create_table(self, table_name: str, expires: bool):
         """Creates the table in bigquery"""
         schema = [
@@ -155,10 +174,16 @@ class BigQuerySink(BatchSink):
     def update_from_temp_table(self, batch_id: str, batch_meta: dict[str, Any]) -> str:
         """Returns suitable queries depending on if we have a primary key or not"""
 
-        if self.key_properties and not self.get_truncate_before_load():
-            return self.update_from_temp_table_merge(batch_id, batch_meta)
-        else:
+        should_append = (
+            self.get_truncate_before_load()
+            or self.get_append_only()
+            or not self.key_properties
+        )
+
+        if should_append:
             return self.update_from_temp_table_append(batch_id)
+        else:
+            return self.update_from_temp_table_merge(batch_id, batch_meta)
 
     def update_from_temp_table_append(self, batch_id: str) -> str:
         """Returs an INSERT query"""

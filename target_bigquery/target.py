@@ -78,6 +78,13 @@ class TargetBigQuery(Target):
             default=False,
         ),
         th.Property(
+            "append_only",
+            th.BooleanType,
+            description="Only append data; don't overwrite existing data",
+            required=False,
+            default=False,
+        ),
+        th.Property(
             "table_configs",
             th.ArrayType(
                 th.ObjectType(
@@ -106,6 +113,13 @@ class TargetBigQuery(Target):
                         "truncate_before_load",
                         th.BooleanType,
                         description="If target table should be truncated before new data is loaded",  # noqa: E501
+                        required=False,
+                        default=None,
+                    ),
+                    th.Property(
+                        "append_only",
+                        th.BooleanType,
+                        description="Only append to table; don't overwrite existing data",  # noqa: E501
                         required=False,
                         default=None,
                     ),
