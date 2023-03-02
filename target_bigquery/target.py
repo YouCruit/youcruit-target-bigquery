@@ -73,7 +73,7 @@ class TargetBigQuery(Target):
         th.Property(
             "truncate_before_load",
             th.BooleanType,
-            description="If target table should be truncated before new data is loaded",
+            description="If tables should be truncated before new data is loaded",
             required=False,
             default=False,
         ),
@@ -99,6 +99,13 @@ class TargetBigQuery(Target):
                         "partition_column",
                         th.StringType,
                         description="Column to partition table by. Must be a timestamp",
+                        required=False,
+                        default=None,
+                    ),
+                    th.Property(
+                        "truncate_before_load",
+                        th.BooleanType,
+                        description="If target table should be truncated before new data is loaded",
                         required=False,
                         default=None,
                     ),

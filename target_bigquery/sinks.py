@@ -104,6 +104,25 @@ class BigQuerySink(BatchSink):
 
         return result
 
+    def get_truncate_before_load(self) -> bool:
+        result = None
+
+        table_configs: Optional[list] = self.config.get("table_configs", None)
+        if table_configs:
+            for table_config in table_configs:
+                if table_config.get("table_name", None) == self.table_name:
+                    result = table_config.get("truncate_before_load", None)
+                    break
+                prefix = table_config.get("table_prefix", None)
+                if prefix and self.table_name.startswith(prefix):
+                    result = table_config.get("truncate_before_load", None)
+                    break
+
+        if result is None:
+            return self.config.get("truncate_before_load", False)
+        else:
+            return result
+
     def create_table(self, table_name: str, expires: bool):
         """Creates the table in bigquery"""
         schema = [
@@ -136,7 +155,7 @@ class BigQuerySink(BatchSink):
     def update_from_temp_table(self, batch_id: str, batch_meta: dict[str, Any]) -> str:
         """Returns suitable queries depending on if we have a primary key or not"""
 
-        if self.key_properties and not self.config.get("truncate_before_load", False):
+        if self.key_properties and not self.get_truncate_before_load():
             return self.update_from_temp_table_merge(batch_id, batch_meta)
         else:
             return self.update_from_temp_table_append(batch_id)
@@ -328,7 +347,7 @@ class BigQuerySink(BatchSink):
 
         queries = []
 
-        if self.config.get("truncate_before_load", False):
+        if self.get_truncate_before_load():
             queries.append(self.truncate_table())
 
         queries.append(self.update_from_temp_table(batch_id, batch_meta))
