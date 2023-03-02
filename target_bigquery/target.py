@@ -105,7 +105,7 @@ class TargetBigQuery(Target):
                     th.Property(
                         "truncate_before_load",
                         th.BooleanType,
-                        description="If target table should be truncated before new data is loaded",
+                        description="If target table should be truncated before new data is loaded",  # noqa: E501
                         required=False,
                         default=None,
                     ),
