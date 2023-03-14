@@ -11,14 +11,12 @@ MINIMAL_CONFIG = {
     "add_record_metadata": False,
 }
 
-
 TRUNCATE_CONFIG = {
     "project_id": "projid",
     "dataset": "dataid",
     "add_record_metadata": False,
     "truncate_before_load": True,
 }
-
 
 TRUNCATE_TABLE_CONFIG = {
     "project_id": "projid",
@@ -31,7 +29,6 @@ TRUNCATE_TABLE_CONFIG = {
         },
     ],
 }
-
 
 APPEND_TABLE_CONFIG = {
     "project_id": "projid",
@@ -127,6 +124,7 @@ def test_loads_records_with_truncate_config(mock_client):
     # Awaiting job
     mock_client.return_value.query.return_value.result.assert_called()
 
+
 @patch("target_bigquery.bq.Client", autospec=True)
 def test_loads_records_with_table_truncate_config(mock_client):
     """Non-batch aware tap with truncate config"""
@@ -166,6 +164,7 @@ def test_loads_records_with_table_truncate_config(mock_client):
 
     # Awaiting job
     mock_client.return_value.query.return_value.result.assert_called_once()
+
 
 @patch("target_bigquery.bq.Client", autospec=True)
 def test_loads_records_with_table_append_config(mock_client):
