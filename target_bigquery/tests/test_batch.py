@@ -359,8 +359,7 @@ def test_loads_batch_three_no_primary_key_with_truncate(mock_client):
 
     # Finish with merging data and dropping temp table
     mock_client.return_value.query.assert_called()
-    i = 0
-    for args in mock_client.return_value.query.call_args_list:
+    for i, args in enumerate(mock_client.return_value.query.call_args_list):
         current_argument = args[0][0]
         assert isinstance(current_argument, str)
         if i == 0:
@@ -371,7 +370,6 @@ def test_loads_batch_three_no_primary_key_with_truncate(mock_client):
             assert "TRUNCATE" not in current_argument
             assert "INSERT INTO `dataid`.`batch_test`" in current_argument
             assert "DROP TABLE `dataid`.`batch_test_" in current_argument
-        i += 1
 
     # Awaiting job
     mock_client.return_value.query.return_value.result.assert_called()
