@@ -257,7 +257,6 @@ class BigQuerySink(BatchSink):
         are also present in Big Query"""
         table_ref = self.client.dataset(self.dataset_id).table(self.table_name)
         table = self.client.get_table(table_ref)
-
         # Column names are case insensitive so lowercase them
         table_columns = [field.name.lower() for field in table.schema]
 
@@ -362,18 +361,17 @@ class BigQuerySink(BatchSink):
         # Delete temp file once we are done with it
         Path(temp_file).unlink()
 
+        queries = []
+
         if not self.once_jobs_done:
             self.create_table(self.table_name, expires=False)
+            if self.get_truncate_before_load():
+                queries.append(self.truncate_table())
             self.ensure_columns_exist()
             self.once_jobs_done = True
 
         # Await job to finish
         load_job.result()
-
-        queries = []
-
-        if self.get_truncate_before_load():
-            queries.append(self.truncate_table())
 
         queries.append(self.update_from_temp_table(batch_id, batch_meta))
         queries.append(self.drop_temp_table(batch_id))

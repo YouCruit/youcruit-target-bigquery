@@ -11,14 +11,12 @@ MINIMAL_CONFIG = {
     "add_record_metadata": False,
 }
 
-
 TRUNCATE_CONFIG = {
     "project_id": "projid",
     "dataset": "dataid",
     "add_record_metadata": False,
     "truncate_before_load": True,
 }
-
 
 TRUNCATE_TABLE_CONFIG = {
     "project_id": "projid",
@@ -31,7 +29,6 @@ TRUNCATE_TABLE_CONFIG = {
         },
     ],
 }
-
 
 APPEND_TABLE_CONFIG = {
     "project_id": "projid",
@@ -76,12 +73,12 @@ def test_loads_records_with_minimal_config(mock_client):
     # Finish with merging data and dropping temp table
     mock_client.return_value.query.assert_called_once()
 
-    first_arg = mock_client.return_value.query.call_args_list[0][0][0]
-    assert isinstance(first_arg, str)
-
-    assert "TRUNCATE" not in first_arg
-    assert "MERGE `dataid`.`test_stream`" in first_arg
-    assert "DROP TABLE `dataid`.`test_stream_" in first_arg
+    for args in mock_client.return_value.query.call_args_list:
+        current_argument = args[0][0]
+        assert isinstance(current_argument, str)
+        assert "TRUNCATE" not in current_argument
+        assert "MERGE `dataid`.`test_stream`" in current_argument
+        assert "DROP TABLE `dataid`.`test_stream_" in current_argument
 
     # Awaiting job
     mock_client.return_value.query.return_value.result.assert_called_once()
@@ -115,17 +112,17 @@ def test_loads_records_with_truncate_config(mock_client):
     assert second_table_kwargs["table"].expires is None
 
     # Finish with merging data and dropping temp table
-    mock_client.return_value.query.assert_called_once()
+    mock_client.return_value.query.assert_called()
 
-    first_arg = mock_client.return_value.query.call_args_list[0][0][0]
-    assert isinstance(first_arg, str)
-
-    assert "TRUNCATE TABLE `dataid`.`test_stream`" in first_arg
-    assert "INSERT INTO `dataid`.`test_stream`" in first_arg
-    assert "DROP TABLE `dataid`.`test_stream_" in first_arg
+    for args in mock_client.return_value.query.call_args_list:
+        current_argument = args[0][0]
+        assert isinstance(current_argument, str)
+        assert "TRUNCATE TABLE `dataid`.`test_stream`" in current_argument
+        assert "INSERT INTO `dataid`.`test_stream`" in current_argument
+        assert "DROP TABLE `dataid`.`test_stream_" in current_argument
 
     # Awaiting job
-    mock_client.return_value.query.return_value.result.assert_called_once()
+    mock_client.return_value.query.return_value.result.assert_called()
 
 
 @patch("target_bigquery.bq.Client", autospec=True)
@@ -158,12 +155,12 @@ def test_loads_records_with_table_truncate_config(mock_client):
     # Finish with merging data and dropping temp table
     mock_client.return_value.query.assert_called_once()
 
-    first_arg = mock_client.return_value.query.call_args_list[0][0][0]
-    assert isinstance(first_arg, str)
-
-    assert "TRUNCATE TABLE `dataid`.`test_stream`" in first_arg
-    assert "INSERT INTO `dataid`.`test_stream`" in first_arg
-    assert "DROP TABLE `dataid`.`test_stream_" in first_arg
+    for args in mock_client.return_value.query.call_args_list:
+        current_argument = args[0][0]
+        assert isinstance(current_argument, str)
+        assert "TRUNCATE TABLE `dataid`.`test_stream`" in current_argument
+        assert "INSERT INTO `dataid`.`test_stream`" in current_argument
+        assert "DROP TABLE `dataid`.`test_stream_" in current_argument
 
     # Awaiting job
     mock_client.return_value.query.return_value.result.assert_called_once()
@@ -199,13 +196,12 @@ def test_loads_records_with_table_append_config(mock_client):
     # Finish with merging data and dropping temp table
     mock_client.return_value.query.assert_called_once()
 
-    first_arg = mock_client.return_value.query.call_args_list[0][0][0]
-    assert isinstance(first_arg, str)
-
-    assert "TRUNCATE" not in first_arg
-    assert "INSERT INTO `dataid`.`test_stream`" in first_arg
-    assert "DROP TABLE `dataid`.`test_stream_" in first_arg
-
+    for args in mock_client.return_value.query.call_args_list:
+        current_argument = args[0][0]
+        assert isinstance(current_argument, str)
+        assert "TRUNCATE" not in current_argument
+        assert "INSERT INTO `dataid`.`test_stream`" in current_argument
+        assert "DROP TABLE `dataid`.`test_stream_" in current_argument
     # Awaiting job
     mock_client.return_value.query.return_value.result.assert_called_once()
 
@@ -237,15 +233,16 @@ def test_loads_batch_one(mock_client):
     assert second_table_kwargs["table"].expires is None
 
     # Finish with merging data and dropping temp table
-    mock_client.return_value.query.assert_called_once()
+    mock_client.return_value.query.assert_called()
 
-    first_arg = mock_client.return_value.query.call_args_list[0][0][0]
-    assert isinstance(first_arg, str)
-
-    assert "MERGE `dataid`.`batch_test`" in first_arg
-    assert "DROP TABLE `dataid`.`batch_test_" in first_arg
+    for args in mock_client.return_value.query.call_args_list:
+        current_argument = args[0][0]
+        assert isinstance(current_argument, str)
+        assert "TRUNCATE" not in current_argument
+        assert "MERGE `dataid`.`batch_test`" in current_argument
+        assert "DROP TABLE `dataid`.`batch_test_" in current_argument
     # Awaiting job
-    mock_client.return_value.query.return_value.result.assert_called_once()
+    mock_client.return_value.query.return_value.result.assert_called()
 
 
 @patch("target_bigquery.bq.Client", autospec=True)
@@ -278,11 +275,13 @@ def test_loads_batch_three(mock_client):
 
     # Finish with merging data and dropping temp table
     mock_client.return_value.query.assert_called()
-    first_arg = mock_client.return_value.query.call_args_list[0][0][0]
-    assert isinstance(first_arg, str)
 
-    assert "MERGE `dataid`.`batch_test`" in first_arg
-    assert "DROP TABLE `dataid`.`batch_test_" in first_arg
+    for args in mock_client.return_value.query.call_args_list:
+        current_argument = args[0][0]
+        assert isinstance(current_argument, str)
+        assert "TRUNCATE" not in current_argument
+        assert "MERGE `dataid`.`batch_test`" in current_argument
+        assert "DROP TABLE `dataid`.`batch_test_" in current_argument
 
     # Awaiting job
     mock_client.return_value.query.return_value.result.assert_called()
@@ -319,12 +318,13 @@ def test_loads_batch_three_no_primary_key(mock_client):
     # Finish with merging data and dropping temp table
     mock_client.return_value.query.assert_called()
 
-    first_arg = mock_client.return_value.query.call_args_list[0][0][0]
-    assert isinstance(first_arg, str)
+    for args in mock_client.return_value.query.call_args_list:
+        current_argument = args[0][0]
+        assert isinstance(current_argument, str)
+        assert "TRUNCATE" not in current_argument
+        assert "INSERT INTO `dataid`.`batch_test`" in current_argument
+        assert "DROP TABLE `dataid`.`batch_test_" in current_argument
 
-    assert "TRUNCATE" not in first_arg
-    assert "INSERT INTO `dataid`.`batch_test`" in first_arg
-    assert "DROP TABLE `dataid`.`batch_test_" in first_arg
     # Awaiting job
     mock_client.return_value.query.return_value.result.assert_called()
 
@@ -359,13 +359,18 @@ def test_loads_batch_three_no_primary_key_with_truncate(mock_client):
 
     # Finish with merging data and dropping temp table
     mock_client.return_value.query.assert_called()
+    for i, args in enumerate(mock_client.return_value.query.call_args_list):
+        current_argument = args[0][0]
+        assert isinstance(current_argument, str)
+        if i == 0:
+            assert "TRUNCATE TABLE `dataid`.`batch_test`" in current_argument
+            assert "INSERT INTO `dataid`.`batch_test`" in current_argument
+            assert "DROP TABLE `dataid`.`batch_test_" in current_argument
+        else:
+            assert "TRUNCATE" not in current_argument
+            assert "INSERT INTO `dataid`.`batch_test`" in current_argument
+            assert "DROP TABLE `dataid`.`batch_test_" in current_argument
 
-    first_arg = mock_client.return_value.query.call_args_list[0][0][0]
-    assert isinstance(first_arg, str)
-
-    assert "TRUNCATE TABLE `dataid`.`batch_test`" in first_arg
-    assert "INSERT INTO `dataid`.`batch_test`" in first_arg
-    assert "DROP TABLE `dataid`.`batch_test_" in first_arg
     # Awaiting job
     mock_client.return_value.query.return_value.result.assert_called()
 
