@@ -368,7 +368,7 @@ class BigQuerySink(BatchSink):
             if self.get_truncate_before_load():
                 queries.append(self.truncate_table())
                 self.logger.info(
-                    f"[{self.stream_name}][{batch_id}] Truncate {self.dataset_id}.{self.table_name}"
+                    f"[{self.stream_name}][{batch_id}] Truncate {self.dataset_id}.{self.table_name}"  # noqa: E501
                 )
             self.ensure_columns_exist()
             self.once_jobs_done = True
