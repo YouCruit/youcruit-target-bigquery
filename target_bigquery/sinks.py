@@ -170,6 +170,7 @@ class BigQuerySink(BatchSink):
             table.expires = datetime.now() + timedelta(days=1)
 
         self.client.create_table(table=table, exists_ok=True)
+        self.logger.info(f"[{self.stream_name}] Table created {self.dataset_id}.{self.table_name}")
 
     def update_from_temp_table(self, batch_id: str, batch_meta: dict[str, Any]) -> str:
         """Returns suitable queries depending on if we have a primary key or not"""
@@ -181,8 +182,10 @@ class BigQuerySink(BatchSink):
         )
 
         if should_append:
+            self.logger.info("using append")
             return self.update_from_temp_table_append(batch_id)
         else:
+            self.logger.info("using merge")
             return self.update_from_temp_table_merge(batch_id, batch_meta)
 
     def update_from_temp_table_append(self, batch_id: str) -> str:
