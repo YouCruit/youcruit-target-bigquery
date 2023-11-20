@@ -11,7 +11,11 @@ def get_client(project_id: str, location: Optional[str] = None) -> Client:
 
 def column_type(name: str, schema_property: dict, nullable: bool) -> SchemaField:
     """Converts to big query type"""
+    if "anyOf" in schema_property and len(schema_property["anyOf"]) > 0:
+        return SchemaField(name, "string", "NULLABLE")
+
     property_type = schema_property["type"]
+
     property_format = schema_property.get("format", None)
 
     if "array" in property_type:
