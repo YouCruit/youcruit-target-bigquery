@@ -58,7 +58,9 @@ def fix_recursive_inner(
     if value is None:
         return None
 
-    if is_unstructured_object(props):
+    if "anyOf" in props:
+        return json.dumps(value)
+    elif is_unstructured_object(props):
         return json.dumps(value)
     # dump to string if array without items or recursive
     elif "array" in props["type"] and (
@@ -110,15 +112,20 @@ def parse_datetime(dt: Any) -> Optional[Union[datetime, date]]:
 def column_type_avro(  # noqa: C901
     name: str, schema_property: dict, nullable: bool
 ) -> dict:
+    result: dict[str, Union[str, dict, list]] = {"name": name}
+    result_type: Union[str, dict[str, Union[Any, str]]] = ""
+
     global schema_collision_counter
     try:
-        property_type = schema_property["type"]
+        if "anyOf" in schema_property and len(schema_property["anyOf"]) > 0:
+            result["type"] = ["null", "string"] if nullable else ["string"]
+            return result
+        else:
+            property_type = schema_property["type"]
     except KeyError:
         raise KeyError(f"Column [{name}] did not have a defined type in the schema")
 
     property_format = schema_property.get("format", None)
-    result: dict[str, Union[str, dict, list]] = {"name": name}
-    result_type: Union[str, dict[str, Union[Any, str]]] = ""
 
     if "array" in property_type:
         try:
