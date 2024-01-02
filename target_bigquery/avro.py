@@ -114,7 +114,7 @@ def column_type_avro(  # noqa: C901
 ) -> dict:
     result: dict[str, Union[str, dict, list]] = {"name": name}
     result_type: Union[str, dict[str, Union[Any, str]]] = ""
-    
+
     global schema_collision_counter
     try:
         if "anyOf" in schema_property and len(schema_property["anyOf"]) > 0:
@@ -126,7 +126,6 @@ def column_type_avro(  # noqa: C901
         raise KeyError(f"Column [{name}] did not have a defined type in the schema")
 
     property_format = schema_property.get("format", None)
-
 
     if "array" in property_type:
         try:

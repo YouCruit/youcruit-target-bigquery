@@ -5,10 +5,8 @@ from unittest.mock import patch
 from ..target import TargetBigQuery
 from . import test_utils
 
-MINIMAL_CONFIG = {
-    "project_id": "projid",
-    "dataset": "dataid"
-}
+MINIMAL_CONFIG = {"project_id": "projid", "dataset": "dataid"}
+
 
 @patch("target_bigquery.bq.Client", autospec=True)
 def test_loads_nested_record(mock_client):
