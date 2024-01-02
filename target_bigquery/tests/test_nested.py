@@ -1,5 +1,4 @@
 """Tests the Batch Sink"""
-from collections import namedtuple
 from unittest.mock import patch
 
 from ..target import TargetBigQuery
