@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import uuid
+import time
 from datetime import datetime, timedelta
 from gzip import GzipFile
 from gzip import open as gzip_open
@@ -25,6 +26,7 @@ from .avro import avro_schema, fix_recursive_types_in_dict
 from .bq import column_type, get_client
 
 PARTITIONS = "partitions"
+
 
 
 class BigQuerySink(BatchSink):
@@ -325,6 +327,9 @@ class BigQuerySink(BatchSink):
 
     def process_batch(self, context: dict) -> None:
         """Write out any prepped records and return once fully written."""
+
+        start = start_timer()
+
         batch_id = context["batch_id"]
 
         partition_column = self.get_partition_column()
@@ -351,11 +356,15 @@ class BigQuerySink(BatchSink):
         _, temp_file = mkstemp()
 
         with open(temp_file, "wb") as tempfile:
+            elapsed_time = stop_timer(start)
+            self.logger.info(f"[{self.stream_name}][{batch_id}] open(temp_file) wb... elapsed time: {elapsed_time} ms")
             writer(tempfile, self.parsed_schema, avro_records)
 
         self.logger.info(f"[{self.stream_name}][{batch_id}] Uploading LoadJob...")
 
         with open(temp_file, "r+b") as tempfile:
+            elapsed_time = stop_timer(start)
+            self.logger.info(f"[{self.stream_name}][{batch_id}] open(temp_file) r+b... elapsed time: {elapsed_time} ms")
             load_job = self.load_table_from_file(tempfile, batch_id)
 
         # Delete temp file once we are done with it
@@ -374,12 +383,21 @@ class BigQuerySink(BatchSink):
             self.once_jobs_done = True
 
         # Await job to finish
+        elapsed_time = stop_timer(start)
+        self.logger.info(f"[{self.stream_name}][{batch_id}] before load_job.result() - time - {elapsed_time} ms")
         load_job.result()
+        elapsed_time = stop_timer(start)
+
+        self.logger.info(f"[{self.stream_name}][{batch_id}] after load_job.result() - time - {elapsed_time} ms")
 
         queries.append(self.update_from_temp_table(batch_id, batch_meta))
         queries.append(self.drop_temp_table(batch_id))
 
+        self.logger.info(f"[{self.stream_name}][{batch_id}] before query - time - {elapsed_time} ms")
+
         self.query(queries)
+
+        self.logger.info(f"[{self.stream_name}][{batch_id}] after query - time - {elapsed_time} ms")
 
         self.logger.info(f"[{self.stream_name}][{batch_id}] Finished batch")
 
@@ -420,3 +438,9 @@ class BigQuerySink(BatchSink):
                 raise NotImplementedError(
                     f"Unsupported batch encoding format: {encoding.format}"
                 )
+
+def start_timer():
+    return time.time()
+
+def stop_timer(start_time):
+    return (time.time() - start_time) * 1000
