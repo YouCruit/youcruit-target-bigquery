@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import json
-import uuid
 import time
+import uuid
 from datetime import datetime, timedelta
 from gzip import GzipFile
 from gzip import open as gzip_open
@@ -12,12 +12,9 @@ from pathlib import Path
 from tempfile import mkstemp
 from typing import IO, Any, BinaryIO, Dict, List, Optional, Sequence
 
-from google.api_core.exceptions import GoogleAPICallError
-
 from fastavro import parse_schema, writer
+from google.api_core.exceptions import GoogleAPICallError
 from google.cloud import bigquery
-# from google.cloud.bigquery import DEFAULT_RETRY
-
 from singer_sdk.helpers._batch import (
     BaseBatchFileEncoding,
     BatchFileFormat,
@@ -28,6 +25,10 @@ from singer_sdk.sinks import BatchSink
 
 from .avro import avro_schema, fix_recursive_types_in_dict
 from .bq import column_type, get_client
+
+# from google.cloud.bigquery import DEFAULT_RETRY
+
+
 
 PARTITIONS = "partitions"
 
@@ -398,7 +399,8 @@ class BigQuerySink(BatchSink):
         try:
             result = load_job.result()
             self.logger.info(
-                f"[{self.stream_name}][{batch_id}] result.eror { result.errors }")
+                f"[{self.stream_name}][{batch_id}] result.eror { result.errors }"
+            )
             # suggested?
             # result = load_job.result(DEFAULT_RETRY.with_deadline(60), 500)
 
@@ -423,15 +425,19 @@ class BigQuerySink(BatchSink):
 
         except GoogleAPICallError as e:
             # Handle Google API call errors
-            self.logger.info(f"[{self.stream_name}][{batch_id}] Google API call error: {e}")
+            self.logger.info(
+                f"[{self.stream_name}][{batch_id}] Google API call error: {e}"
+            )
         except TimeoutError:
             # Handle timeout errors
-            self.logger.info(f"[{self.stream_name}][{batch_id}] Timeout error: Job did not complete in the given timeout.")
+            self.logger.info(
+                f"[{self.stream_name}][{batch_id}] Timeout error: Job did not complete in the given timeout."
+            )
         except Exception as e:
             # Handle other unexpected errors
-            self.logger.info(f"[{self.stream_name}][{batch_id}] An unexpected error occurred: {e}")
-
-
+            self.logger.info(
+                f"[{self.stream_name}][{batch_id}] An unexpected error occurred: {e}"
+            )
 
     def process_batch_files(
         self,
