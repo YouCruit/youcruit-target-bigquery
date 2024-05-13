@@ -29,7 +29,6 @@ from .bq import column_type, get_client
 # from google.cloud.bigquery import DEFAULT_RETRY
 
 
-
 PARTITIONS = "partitions"
 
 
